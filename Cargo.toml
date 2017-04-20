@@ -1,0 +1,10 @@
+[package]
+name = "deptree"
+version = "0.1.0"
+authors = ["cetra3 <peter@parashift.com.au>"]
+
+[dependencies]
+petgraph = "*"
+serde = "0.9"
+serde_derive = "0.9"
+serde_yaml = "0.6"

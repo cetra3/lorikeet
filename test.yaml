@@ -1,0 +1,25 @@
+another_thread:
+  run: Whatever
+
+something:
+  run: echo "should be next"
+
+somelast:
+  run: echo "should be last"
+  require:
+    - something
+
+somelast2:
+  run: whatever
+  require:
+    - something
+    - something2
+
+something2:
+  run: whatever
+
+someone:
+  run: echo "hello"
+  required_by:
+    - something
+    - something2
