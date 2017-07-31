@@ -1,0 +1,29 @@
+
+use petgraph::prelude::GraphMap;
+use petgraph;
+use step::Step;
+
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct Require;
+
+pub fn create_graph(steps: &Vec<Step>) -> GraphMap<usize, Require, petgraph::Directed> {
+    let mut graph = GraphMap::<usize, Require, petgraph::Directed>::new();
+
+    for i in 0..steps.len() {
+
+        for dep in steps[i].require.iter() {
+            let dep_index = steps.iter().position(|ref step| &step.name == dep).expect(&format!("Could not find step: {}! Dependency for: {}", dep, steps[i].name));
+            graph.add_edge(dep_index, i,  Require);
+        }
+
+        for dep in steps[i].required_by.iter() {
+            let dep_index = steps.iter().position(|ref step| &step.name == dep).expect(&format!("Could not find step: {}!", dep));
+            graph.add_edge(i, dep_index,  Require);
+        }
+    }
+
+    petgraph::algo::toposort(&graph, None).expect("Encountered a Circular Dependency!");
+
+    graph
+}
