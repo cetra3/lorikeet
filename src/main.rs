@@ -27,7 +27,7 @@ fn main() {
 
     let opt = Arguments::from_args();
 
-    env_logger::init();
+    env_logger::init().expect("Could not initialise logger");
 
 
     let steps = get_steps(&opt.test_plan, &opt.config);
