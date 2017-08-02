@@ -2,22 +2,32 @@ use std::sync::mpsc::Sender;
 
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::channel;
+use std::time::Duration;
 
-use step::{Step, Status, RunType};
+use step::{Step, Outcome, RunType, ExpectType};
 
 use graph::{create_graph, Require};
 use petgraph::prelude::GraphMap;
 use petgraph::{Directed, Direction};
 
+
 use threadpool::ThreadPool;
 
 pub struct StepRunner {
     pub run: RunType,
+    pub expect: ExpectType,
     pub graph: Arc<GraphMap<usize, Require, Directed>>,
     pub steps: Arc<Mutex<Vec<Status>>>,
     pub pool: ThreadPool,
     pub index: usize,
     pub notify: Sender<usize>
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub enum Status {
+    InProgress,
+    Outstanding,
+    Completed(Outcome)
 }
 
 impl StepRunner {
@@ -38,11 +48,14 @@ impl StepRunner {
 
         for neighbor in self.graph.neighbors_directed(self.index, Direction::Incoming) {
             match self.steps.lock().unwrap()[neighbor] {
-                Status::Completed(Ok(_)) => (),
-                Status::Completed(Err(_)) => {
-                    self.notify.send(self.index).expect("Could not notify executor");
-                    has_error = true;
-                    break;
+                Status::Completed(ref status_outcome) => {
+
+                    if let Err(_) = status_outcome.result {
+                        self.notify.send(self.index).expect("Could not notify executor");
+                        has_error = true;
+                        break;
+                    }
+
                 },
                 _ => {
                     debug!("Neighbor {} isn't completed for {}, skipping", neighbor, self.index);
@@ -52,7 +65,7 @@ impl StepRunner {
         }
 
         if has_error {
-            self.steps.lock().unwrap()[self.index] = Status::Completed(Err(String::from("Dependency not met")));
+            self.steps.lock().unwrap()[self.index] = Status::Completed(Outcome { result: Err(String::from("Dependency not met")), duration: Duration::from_secs(0) });
             return;
         }
 
@@ -61,6 +74,7 @@ impl StepRunner {
             self.steps.lock().unwrap()[self.index] = Status::InProgress;
 
             let run = self.run.clone();
+            let expect = self.expect.clone();
             let tx = self.notify.clone();
             let index = self.index;
             let steps = self.steps.clone();
@@ -68,18 +82,18 @@ impl StepRunner {
             //let task = task::current();
             self.pool.execute(move || {
 
-                let status = run.execute();
-                debug!("Step done:{:?}", status);
-                steps.lock().unwrap()[index] = status;
+                let outcome = run.execute(expect);
+                debug!("Step done:{:?}", outcome);
+                steps.lock().unwrap()[index] = Status::Completed(outcome);
                 tx.send(index).expect("Could not notify executor");
-                
+
             });
         }
     }
 
 }
 
-pub fn run_steps(steps: &Vec<Step>) -> Vec<Status> {
+pub fn run_steps(steps: &Vec<Step>) -> Vec<Outcome> {
 
     let steps_status:  Arc<Mutex<Vec<Status>>> = Arc::new(Mutex::new(vec![Status::Outstanding; steps.len()]));
 
@@ -97,6 +111,7 @@ pub fn run_steps(steps: &Vec<Step>) -> Vec<Status> {
 
             let future = StepRunner {
                 run: steps[i].run.clone(),
+                expect: steps[i].expect.clone(),
                 graph: shared_graph.clone(),
                 steps: steps_status.clone(),
                 index: i,
@@ -120,10 +135,20 @@ pub fn run_steps(steps: &Vec<Step>) -> Vec<Status> {
                 runners[neighbor].poll();
             };
         };
-    
+
     }
 
     let steps_ptr = Arc::try_unwrap(steps_status).expect("Could not retrieve the status list");
 
-    steps_ptr.into_inner().unwrap()
+    let mut outcomes = Vec::new();
+
+    for status in steps_ptr.into_inner().expect("Could not free mutex").into_iter() {
+
+        if let Status::Completed(outcome) = status {
+            outcomes.push(outcome);
+        }
+
+    }
+
+    outcomes
 }

@@ -10,6 +10,15 @@ extern crate serde;
 extern crate tera;
 extern crate threadpool;
 
+extern crate linked_hash_map;
+
+extern crate regex;
+
+extern crate reqwest;
+extern crate hyper;
+
+extern crate term_painter;
+
 pub mod runner;
 pub mod yaml;
 pub mod step;
