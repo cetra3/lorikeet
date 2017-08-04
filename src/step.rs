@@ -8,10 +8,16 @@ use serde::de::{Error, Deserialize, Deserializer};
 use std::str::FromStr;
 use std::io::Read;
 
+use std::collections::HashMap;
+
+use std::sync::RwLock;
+
+use hyper::header::{SetCookie, Cookie};
+
 use term_painter::Color::*;
 use term_painter::ToStyle;
 
-use reqwest;
+use reqwest::{self, RedirectPolicy};
 
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -67,6 +73,10 @@ pub enum HttpVariant {
     Options(HttpOptions)
 }
 
+lazy_static! {
+    static ref COOKIES: RwLock<Cookie> = RwLock::new(Cookie::new());
+}
+
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct HttpOptions {
     url: String,
@@ -74,12 +84,16 @@ pub struct HttpOptions {
     method: Method,
     #[serde(default = "default_output")]
     get_output: bool,
+    #[serde(default = "default_cookies")]
+    save_cookies: bool,
     #[serde(default = "default_status")]
     status: u16,
     #[serde(default)]
     user: Option<String>,
     #[serde(default)]
-    pass: Option<String>
+    pass: Option<String>,
+    #[serde(default)]
+    form: Option<HashMap<String, String>>
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -93,6 +107,8 @@ fn string_to_method<'de,D>(d: D) -> Result<Method, D::Error>
     where D: Deserializer<'de> {
     Deserialize::deserialize(d).and_then(|str| Method::from_str(str).map_err(Error::custom))
 }
+
+fn default_cookies() -> bool { false }
 
 fn default_output() -> bool {
     true
@@ -153,15 +169,17 @@ impl RunType {
             },
             RunType::Http(ref val) => {
 
-                let httpops = match *val {
+                let mut httpops = match *val {
                     HttpVariant::UrlOnly(ref val) => {
                         HttpOptions {
                             url: val.clone(),
                             method: Method::Get,
                             get_output: default_output(),
                             status: default_status(),
+                            save_cookies: default_cookies(),
                             user: None,
                             pass: None,
+                            form: None
                         }
                     },
                     HttpVariant::Options(ref opts) => {
@@ -169,13 +187,29 @@ impl RunType {
                     }
                 };
 
-                let client = reqwest::Client::new().map_err(|err| format!("{:?}", err))?;
+                let mut clientbuilder = reqwest::ClientBuilder::new().map_err(|err| format!("{:?}", err))?;
+
+                let client = clientbuilder.redirect(RedirectPolicy::none()).build().map_err(|err| format!("{:?}", err))?;
+
                 let url = reqwest::Url::from_str(&httpops.url).map_err(|err| format!("{:?}", err))?;
+
+
+                if httpops.form != None && httpops.method == Method::Get {
+                    httpops.method = Method::Post;
+                }
+
                 let mut request = client.request(httpops.method, url).map_err(|err| format!("{:?}", err))?;
 
                 if httpops.user != None {
                     request.basic_auth(httpops.user.unwrap(), httpops.pass);
                 }
+
+                if let Some(form) = httpops.form {
+                    request.form(&form).expect("Could not serialize form!");
+                }
+
+
+                request.header(COOKIES.read().unwrap().clone());
 
                 let mut response = client.execute(request.build()).map_err(|err| format!("{:?}", err))?;
                 let mut output = String::new();
@@ -186,6 +220,25 @@ impl RunType {
 
                 if httpops.get_output {
                     response.read_to_string(&mut output).map_err(|err| format!("{:?}", err))?;
+                }
+
+                if httpops.save_cookies {
+
+                    if let Some(cookies) = response.headers().get::<SetCookie>() {
+
+                        let mut existing = COOKIES.write().unwrap();
+
+                        for cookie in cookies.iter() {
+
+                            let cookie_parts: Vec<&str> = cookie.split(";").collect();
+                            let key_value: Vec<&str> = cookie_parts[0].splitn(2, "=", ).collect();
+
+                            existing.set(String::from(key_value[0]), String::from(key_value[1]));
+
+                        }
+
+                    }
+
                 }
 
                 return Ok(output)
