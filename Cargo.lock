@@ -1,6 +1,6 @@
 [root]
 name = "lorikeet"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
