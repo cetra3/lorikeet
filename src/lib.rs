@@ -22,6 +22,8 @@ extern crate hyper;
 
 extern crate term_painter;
 
+extern crate chashmap;
+
 pub mod runner;
 pub mod yaml;
 pub mod step;

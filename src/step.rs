@@ -10,12 +10,12 @@ use std::io::Read;
 
 use std::collections::HashMap;
 
-use std::sync::RwLock;
-
 use hyper::header::{SetCookie, Cookie};
 
 use term_painter::Color::*;
 use term_painter::ToStyle;
+
+use chashmap::CHashMap;
 
 use reqwest::{self, RedirectPolicy};
 
@@ -74,7 +74,7 @@ pub enum HttpVariant {
 }
 
 lazy_static! {
-    static ref COOKIES: RwLock<Cookie> = RwLock::new(Cookie::new());
+    static ref COOKIES: CHashMap<String, Cookie> = CHashMap::new();
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -193,6 +193,7 @@ impl RunType {
 
                 let url = reqwest::Url::from_str(&httpops.url).map_err(|err| format!("{:?}", err))?;
 
+                let hostname: String = url.host_str().map(|str| String::from(str)).ok_or_else(|| format!("No host could be found for url:{}", url))?;
 
                 if httpops.form != None && httpops.method == Method::Get {
                     httpops.method = Method::Post;
@@ -209,7 +210,12 @@ impl RunType {
                 }
 
 
-                request.header(COOKIES.read().unwrap().clone());
+                if let Some(cookies) = COOKIES.get(&hostname) {
+                    request.header(cookies.clone());
+                }
+
+
+
 
                 let mut response = client.execute(request.build()).map_err(|err| format!("{:?}", err))?;
                 let mut output = String::new();
@@ -226,17 +232,18 @@ impl RunType {
 
                     if let Some(cookies) = response.headers().get::<SetCookie>() {
 
-                        let mut existing = COOKIES.write().unwrap();
+                            let mut new_cookies = Cookie::new();
 
-                        for cookie in cookies.iter() {
+                            for cookie in cookies.iter() {
 
-                            let cookie_parts: Vec<&str> = cookie.split(";").collect();
-                            let key_value: Vec<&str> = cookie_parts[0].splitn(2, "=", ).collect();
+                                let cookie_parts: Vec<&str> = cookie.split(";").collect();
+                                let key_value: Vec<&str> = cookie_parts[0].splitn(2, "=", ).collect();
 
-                            existing.set(String::from(key_value[0]), String::from(key_value[1]));
+                                new_cookies.set(String::from(key_value[0]), String::from(key_value[1]));
 
-                        }
+                            }
 
+                            COOKIES.insert(hostname, new_cookies);
                     }
 
                 }
