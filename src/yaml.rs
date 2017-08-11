@@ -10,6 +10,7 @@ use linked_hash_map::LinkedHashMap;
 
 #[derive(Debug, PartialEq, Deserialize)]
 struct StepYaml {
+    description: Option<String>,
     value: Option<String>,
     bash: Option<BashVariant>,
     http: Option<HttpVariant>,
@@ -66,13 +67,13 @@ pub fn get_steps(test_plan: &str, config: &Option<String>) -> Vec<Step> {
     let input_steps: LinkedHashMap<String, StepYaml> = serde_yaml::from_str(&test_plan_yaml).unwrap();
     let mut steps: Vec<Step> =  Vec::new();
 
-
-
     for (name, step) in input_steps {
         steps.push(Step {
             name: name,
             run: get_runtype(&step),
             expect: get_expecttype(&step),
+            description: step.description,
+            outcome: None,
             require: step.require.map(|require| require.to_vec()).unwrap_or(Vec::new()),
             required_by: step.required_by.map(|require| require.to_vec()).unwrap_or(Vec::new()),
         });

@@ -4,6 +4,7 @@ use regex::Regex;
 use reqwest::Method;
 use std::time::{Duration, Instant};
 use serde::de::{Error, Deserialize, Deserializer};
+use serde::ser::Serializer;
 
 use std::str::FromStr;
 use std::io::Read;
@@ -12,25 +13,25 @@ use std::collections::HashMap;
 
 use hyper::header::{SetCookie, Cookie};
 
-use term_painter::Color::*;
-use term_painter::ToStyle;
 
 use chashmap::CHashMap;
 
 use reqwest::{self, RedirectPolicy};
 
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Outcome {
     pub result: Result<String, String>,
     pub duration: Duration
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Step {
     pub name: String,
+    pub description: Option<String>,
     pub run: RunType,
     pub expect: ExpectType,
+    pub outcome: Option<Outcome>,
     pub require: Vec<String>,
     pub required_by: Vec<String>
 }
@@ -51,7 +52,7 @@ impl Requirement {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RunType {
     Value(String),
@@ -59,14 +60,14 @@ pub enum RunType {
     Http(HttpVariant)
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum BashVariant {
     CmdOnly(String),
     Options(BashOptions)
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum HttpVariant {
     UrlOnly(String),
@@ -77,10 +78,10 @@ lazy_static! {
     static ref COOKIES: CHashMap<String, Cookie> = CHashMap::new();
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct HttpOptions {
     url: String,
-    #[serde(default, deserialize_with = "string_to_method")]
+    #[serde(default, deserialize_with = "string_to_method", serialize_with = "method_to_string")]
     method: Method,
     #[serde(default = "default_output")]
     get_output: bool,
@@ -96,11 +97,16 @@ pub struct HttpOptions {
     form: Option<HashMap<String, String>>
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BashOptions {
     cmd: String,
     #[serde(default = "default_output")]
     get_output: bool
+}
+
+fn method_to_string<S>(method: &Method, s: S) -> Result<S::Ok, S::Error>
+    where S: Serializer {
+    s.serialize_str(method.as_ref())
 }
 
 fn string_to_method<'de,D>(d: D) -> Result<Method, D::Error>
@@ -187,19 +193,19 @@ impl RunType {
                     }
                 };
 
-                let mut clientbuilder = reqwest::ClientBuilder::new().map_err(|err| format!("{:?}", err))?;
+                let mut clientbuilder = reqwest::ClientBuilder::new().map_err(|err| format!("{}", err))?;
 
-                let client = clientbuilder.redirect(RedirectPolicy::none()).build().map_err(|err| format!("{:?}", err))?;
+                let client = clientbuilder.redirect(RedirectPolicy::none()).build().map_err(|err| format!("{}", err))?;
 
-                let url = reqwest::Url::from_str(&httpops.url).map_err(|err| format!("{:?}", err))?;
+                let url = reqwest::Url::from_str(&httpops.url).map_err(|err| format!("Failed to parse url `{}`: {}", httpops.url, err))?;
 
-                let hostname: String = url.host_str().map(|str| String::from(str)).ok_or_else(|| format!("No host could be found for url:{}", url))?;
+                let hostname: String = url.host_str().map(|str| String::from(str)).ok_or_else(|| format!("No host could be found for url: {}", url))?;
 
                 if httpops.form != None && httpops.method == Method::Get {
                     httpops.method = Method::Post;
                 }
 
-                let mut request = client.request(httpops.method, url).map_err(|err| format!("{:?}", err))?;
+                let mut request = client.request(httpops.method, url).map_err(|err| format!("{}", err))?;
 
                 if httpops.user != None {
                     request.basic_auth(httpops.user.unwrap(), httpops.pass);
@@ -217,7 +223,9 @@ impl RunType {
 
 
 
-                let mut response = client.execute(request.build()).map_err(|err| format!("{:?}", err))?;
+                let mut response = client.execute(request.build()).map_err(|err| {
+                    format!("Error connecting to url {}", err)
+                })?;
                 let mut output = String::new();
 
                 if response.status().as_u16() != httpops.status {
@@ -256,42 +264,16 @@ impl RunType {
 }
 
 
-impl Outcome {
-    pub fn terminal_print(&self, step: &Step, colours: &bool) {
+impl Step {
+    pub fn get_duration_ms(&self) -> f32 {
 
-        let (style, pass, msg) = match self.result {
-            Ok(ref msg) => {
-                (Green.bold(), true, msg)
+        match self.outcome {
+            Some(ref outcome) => {
+                let nanos = outcome.duration.subsec_nanos() as f32;
+                (1000000000f32 * outcome.duration.as_secs() as f32 + nanos)/(1000000f32)
             },
-            Err(ref msg) => {
-                (Red.bold(), false, msg)
-            }
-        };
-
-        let mut message = format!("- name: {}\n  pass: {}\n", step.name, pass);
-
-        if msg != "" {
-
-            let output = msg.trim();
-
-            if output.contains("\n") {
-                message.push_str(&format!("  output: |\n    {}\n", output.replace("\n", "\n    ")));
-            } else {
-                message.push_str(&format!("  output: {}\n", output));
-            }
-
+            None => 0f32
         }
-
-        let nanos = self.duration.subsec_nanos() as f32;
-        let ms : f32 = (1000000000f32 * self.duration.as_secs() as f32 + nanos)/(1000000f32);
-        message.push_str(&format!("  duration: {}ms\n", ms));
-
-        if *colours {
-            println!("{}", style.paint(message));
-        } else {
-            println!("{}", message);
-        }
-
     }
 }
 

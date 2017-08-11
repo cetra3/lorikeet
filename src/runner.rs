@@ -93,7 +93,7 @@ impl StepRunner {
 
 }
 
-pub fn run_steps(steps: &Vec<Step>) -> Vec<Outcome> {
+pub fn run_steps(steps: &mut Vec<Step>) {
 
     let steps_status:  Arc<Mutex<Vec<Status>>> = Arc::new(Mutex::new(vec![Status::Outstanding; steps.len()]));
 
@@ -140,15 +140,12 @@ pub fn run_steps(steps: &Vec<Step>) -> Vec<Outcome> {
 
     let steps_ptr = Arc::try_unwrap(steps_status).expect("Could not retrieve the status list");
 
-    let mut outcomes = Vec::new();
-
-    for status in steps_ptr.into_inner().expect("Could not free mutex").into_iter() {
+    for (i, status) in steps_ptr.into_inner().expect("Could not free mutex").into_iter().enumerate() {
 
         if let Status::Completed(outcome) = status {
-            outcomes.push(outcome);
+            steps[i].outcome = Some(outcome);
         }
 
     }
 
-    outcomes
 }

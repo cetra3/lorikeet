@@ -24,7 +24,10 @@ extern crate term_painter;
 
 extern crate chashmap;
 
+extern crate hostname;
+
 pub mod runner;
 pub mod yaml;
 pub mod step;
 pub mod graph;
+pub mod submitter;
