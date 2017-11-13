@@ -11,6 +11,8 @@ extern crate isatty;
 #[macro_use] extern crate log;
 extern crate env_logger;
 
+extern crate openssl_probe;
+
 use structopt::StructOpt;
 
 
@@ -34,10 +36,12 @@ struct Arguments {
     test_plan: String,
 
     #[structopt(short = "w", long = "webhook", help = "Webhook submission URL")]
-    webhook: Option<String>,
+    webhook: Vec<String>,
 }
 
 fn main() {
+
+    openssl_probe::init_ssl_cert_env_vars();
 
     let opt = Arguments::from_args();
 
@@ -73,7 +77,7 @@ fn main() {
         results.push(result);
     }
 
-    if let Some(url) = opt.webhook {
+    for url in opt.webhook {
         lorikeet::submitter::submit_webhook(&results, &url, None).expect("Could not send webhook")
     }
 
