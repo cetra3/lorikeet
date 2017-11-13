@@ -26,6 +26,8 @@ extern crate chashmap;
 
 extern crate hostname;
 
+extern crate sys_info;
+
 pub mod runner;
 pub mod yaml;
 pub mod step;

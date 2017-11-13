@@ -4,7 +4,7 @@ use std::fs::File;
 use serde_yaml::{self,Value};
 use tera::{Tera,Context};
 
-use step::{RunType, ExpectType, Step, Requirement, BashVariant, HttpVariant};
+use step::{RunType, ExpectType, Step, Requirement, BashVariant, HttpVariant, SystemVariant};
 use linked_hash_map::LinkedHashMap;
 
 
@@ -14,7 +14,10 @@ struct StepYaml {
     value: Option<String>,
     bash: Option<BashVariant>,
     http: Option<HttpVariant>,
+    system: Option<SystemVariant>,
     matches: Option<String>,
+    less_than: Option<String>,
+    greater_than: Option<String>,
     require: Option<Requirement>,
     required_by: Option<Requirement>
 }
@@ -29,15 +32,28 @@ fn get_runtype(step: &StepYaml) -> RunType {
         return RunType::Http(variant.clone())
     }
 
+    if let Some(ref variant) = step.system {
+        return RunType::System(variant.clone())
+    }
+
     return RunType::Value(step.value.clone().unwrap_or(String::new()))
 }
 
 fn get_expecttype(step: &StepYaml) -> ExpectType {
 
-    match step.matches {
-        Some(ref string) => ExpectType::Matches(string.clone()),
-        None => ExpectType::Anything
+    if let Some(ref string) = step.matches {
+        return ExpectType::Matches(string.clone())
     }
+
+    if let Some(ref string) = step.greater_than {
+        return ExpectType::GreaterThan(string.parse().expect("Could not parse number"))
+    }
+
+    if let Some(ref string) = step.less_than {
+        return ExpectType::LessThan(string.parse().expect("Could not parse number"))
+    }
+
+    return ExpectType::Anything
 }
 
 

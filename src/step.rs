@@ -13,6 +13,7 @@ use std::collections::HashMap;
 
 use hyper::header::{SetCookie, Cookie};
 
+use sys_info::{loadavg, mem_info, disk_info};
 
 use chashmap::CHashMap;
 
@@ -57,7 +58,21 @@ impl Requirement {
 pub enum RunType {
     Value(String),
     Bash(BashVariant),
-    Http(HttpVariant)
+    Http(HttpVariant),
+    System(SystemVariant)
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SystemVariant {
+    MemTotal,
+    MemFree,
+    MemAvailable,
+    LoadAvg1m,
+    LoadAvg5m,
+    LoadAvg15m,
+    DiskTotal,
+    DiskFree
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -258,6 +273,34 @@ impl RunType {
 
                 return Ok(output)
 
+            },
+            RunType::System(ref variant) => {
+                match *variant {
+                    SystemVariant::LoadAvg1m => {
+                        loadavg().map(|load| load.one.to_string()).map_err(|_| String::from(format!("Could not get load")))
+                    },
+                    SystemVariant::LoadAvg5m => {
+                        loadavg().map(|load| load.five.to_string()).map_err(|_| String::from(format!("Could not get load")))
+                    },
+                    SystemVariant::LoadAvg15m => {
+                        loadavg().map(|load| load.fifteen.to_string()).map_err(|_| String::from(format!("Could not get load")))
+                    },
+                    SystemVariant::MemAvailable => {
+                        mem_info().map(|mem| mem.avail.to_string()).map_err(|_| String::from(format!("Could not get memory")))
+                    },
+                    SystemVariant::MemFree => {
+                        mem_info().map(|mem| mem.free.to_string()).map_err(|_| String::from(format!("Could not get memory")))
+                    },
+                    SystemVariant::MemTotal => {
+                        mem_info().map(|mem| mem.total.to_string()).map_err(|_| String::from(format!("Could not get memory")))
+                    },
+                    SystemVariant::DiskTotal => {
+                        disk_info().map(|disk| disk.total.to_string()).map_err(|_| String::from(format!("Could not get disk")))
+                    }
+                    SystemVariant::DiskFree => {
+                        disk_info().map(|disk| disk.free.to_string()).map_err(|_| String::from(format!("Could not get disk")))
+                    }
+                }
             }
         }
     }
@@ -281,7 +324,9 @@ impl Step {
 #[serde(rename_all = "lowercase")]
 pub enum ExpectType {
     Anything,
-    Matches(String)
+    Matches(String),
+    GreaterThan(f64),
+    LessThan(f64)
 }
 
 impl ExpectType {
@@ -296,6 +341,35 @@ impl ExpectType {
                     Ok(String::new())
                 } else {
                     Err(format!("Not matched against `{}`", match_string))
+                }
+            },
+            ExpectType::GreaterThan(ref num) => {
+
+                match val.parse::<f64>() {
+                    Ok(compare) => {
+                        if compare > *num {
+                            Ok(String::from(val))
+                        } else {
+                            Err(format!("the value `{}` is less than `{}`", compare, num))
+                        }
+                    },
+                    Err(_) => {
+                        Err(format!("Could not parse `{}` as a number", num))
+                    }
+                }
+            },
+            ExpectType::LessThan(ref num) => {
+                match val.parse::<f64>() {
+                    Ok(compare) => {
+                        if compare < *num {
+                            Ok(String::from(val))
+                        } else {
+                            Err(format!("the value `{}` is greater than `{}`", compare, num))
+                        }
+                    },
+                    Err(_) => {
+                        Err(format!("Could not parse `{}` as a number", num))
+                    }
                 }
             }
         }
