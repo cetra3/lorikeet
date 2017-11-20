@@ -208,7 +208,7 @@ impl RunType {
                     }
                 };
 
-                let mut clientbuilder = reqwest::ClientBuilder::new().map_err(|err| format!("{}", err))?;
+                let mut clientbuilder = reqwest::ClientBuilder::new();
 
                 let client = clientbuilder.redirect(RedirectPolicy::none()).build().map_err(|err| format!("{}", err))?;
 
@@ -220,14 +220,14 @@ impl RunType {
                     httpops.method = Method::Post;
                 }
 
-                let mut request = client.request(httpops.method, url).map_err(|err| format!("{}", err))?;
+                let mut request = client.request(httpops.method, url);
 
                 if httpops.user != None {
                     request.basic_auth(httpops.user.unwrap(), httpops.pass);
                 }
 
                 if let Some(form) = httpops.form {
-                    request.form(&form).expect("Could not serialize form!");
+                    request.form(&form);
                 }
 
 
@@ -238,7 +238,7 @@ impl RunType {
 
 
 
-                let mut response = client.execute(request.build()).map_err(|err| {
+                let mut response = client.execute(request.build().map_err(|err| format!("{:?}", err))?).map_err(|err| {
                     format!("Error connecting to url {}", err)
                 })?;
                 let mut output = String::new();

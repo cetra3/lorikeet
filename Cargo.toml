@@ -1,6 +1,6 @@
 [package]
 name = "lorikeet"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["cetra3 <cetra3@hotmail.com>"]
 license = "MIT/Apache-2.0"
 description = "a parallel test runner for devops"
@@ -21,7 +21,7 @@ term-painter = "0.2.3"
 isatty = "0.1"
 regex = "0.2"
 env_logger = "0.4.3"
-reqwest = "0.7"
+reqwest = "0.8"
 hyper = "0.11"
 chrono = "0.4.0"
 lazy_static = "0.2.8"
