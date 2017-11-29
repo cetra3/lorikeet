@@ -27,10 +27,14 @@ pub struct WebHook {
 
 pub fn submit_webhook(results: &Vec<StepResult>, url: &str, hostname: Option<&str>) -> Result<(),reqwest::Error> {
 
+    debug!("Submitting webhook to:{}", url);
+
     let hostname = match hostname {
         Some(hostname) => String::from(hostname),
         None => hostname::get_hostname().unwrap_or_else(||String::from(""))
     };
+
+    debug!("Hostname is:{}", hostname);
 
     let has_errors = results.iter().any(|result| result.pass == false);
 
@@ -42,6 +46,7 @@ pub fn submit_webhook(results: &Vec<StepResult>, url: &str, hostname: Option<&st
         tests: results.clone()
     };
 
+    debug!("WebHook payload is:{:?}", payload);
 
     let _ = client.post(url)
         .json(&payload)

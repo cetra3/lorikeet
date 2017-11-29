@@ -77,6 +77,8 @@ fn main() {
         results.push(result);
     }
 
+    debug!("Steps finished! Submitting webhooks");
+
     for url in opt.webhook {
         lorikeet::submitter::submit_webhook(&results, &url, None).expect("Could not send webhook")
     }
