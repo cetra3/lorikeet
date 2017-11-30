@@ -50,9 +50,18 @@ pub fn submit_webhook(results: &Vec<StepResult>, url: &str, hostname: Option<&st
 
     let client = reqwest::Client::new();
 
-    let _ = client.post(url)
-        .json(&payload)
-        .send()?;
+    let mut builder = client.post(url);
+
+    debug!("Create Reqwest Client");
+
+    builder.json(&payload);
+
+    debug!("Appended JSON payload");
+
+    let result = 
+        builder.send()?;
+    
+    debug!("Sent request! Result is {:?}", result);
 
     Ok(())
 }
