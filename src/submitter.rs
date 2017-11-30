@@ -38,15 +38,17 @@ pub fn submit_webhook(results: &Vec<StepResult>, url: &str, hostname: Option<&st
 
     let has_errors = results.iter().any(|result| result.pass == false);
 
-    let client = reqwest::Client::new();
+    debug!("Has errors is:{}", has_errors);
 
     let payload = WebHook {
-        hostname: String::from(hostname),
+        hostname: hostname,
         has_errors: has_errors,
         tests: results.clone()
     };
 
     debug!("WebHook payload is:{:?}", payload);
+
+    let client = reqwest::Client::new();
 
     let _ = client.post(url)
         .json(&payload)
