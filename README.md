@@ -137,7 +137,7 @@ You can submit your results to a server using a webhook when the test run is fin
 {
     "hostname": "example.hostname",
     "has_errors": false,
-    tests: [{
+    "tests": [{
         "name": "Example Webhook",
         "pass": true,
         "duration": 7.70
