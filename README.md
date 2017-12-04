@@ -12,7 +12,7 @@ Steps are run in parallel by default, using the number of threads that are avail
 
 As an example, here's a test plan to check to see whether reddit is up, and then tries to login if it is:
 
-```
+```yaml
 check_reddit:
   http: https://www.reddit.com
   matches: the front page of the internet
@@ -34,7 +34,7 @@ login_to_reddit:
 
 And the output of lorikeet:
 
-```
+```yaml
 $ lorikeet -c config.yml test.yml
 - name: check_reddit
   pass: true
@@ -53,13 +53,13 @@ They are also very noisy birds.
 
 Lorikeet is on crates.io, so you can either run:
 
-```
+```sh
 cargo install lorikeet
 ```
 
 Or clone and build this repo:
 
-```
+```sh
 cargo build --release
 ```
 
@@ -94,7 +94,7 @@ Lorikeet uses [tera](https://github.com/Keats/tera) as a template engine so you 
 
 As an example, say you want to check that a number of servers are up and connected.  You can have a config like so:
 
-```
+```yaml
 instances:
   - server1
   - server2
@@ -103,7 +103,7 @@ instances:
 
 And then write your test plan:
 
-```
+```yaml
 {% for instance in instances %}
 
 ping_server_{{instance}}:
@@ -114,7 +114,7 @@ ping_server_{{instance}}:
 
 And run it:
 
-```
+```yaml
 $ lorikeet -c config.yml test.yml
 - name: ping_server_server1
   pass: true
@@ -133,7 +133,7 @@ $ lorikeet -c config.yml test.yml
 
 You can submit your results to a server using a webhook when the test run is finished.  This will POST a json object with the `submitter::WebHook` shape:
 
-```
+```json
 {
     "hostname": "example.hostname",
     "has_errors": false,
@@ -169,14 +169,14 @@ There are currently 4 step types that can be configured: bash, http, system and 
 
 The bash step type simply runs the `bash` command to execute shell scripts:
 
-```
+```yaml
 say_hello:
   bash: echo "hello"
 ```
 
 Optionally you can specify not to return the output if you're only interested in the return code of the application:
 
-```
+```yaml
 dont_say_hello:
   bash:
     cmd: echo "hello"
@@ -189,7 +189,7 @@ The HTTP step type can execute HTTP commands to web servers using reqwest.  Curr
 
 You can specify just the URL:
 
-```
+```yaml
 check_reddit:
   http: https://www.reddit.com
   matches: the front page of the internet
@@ -197,18 +197,18 @@ check_reddit:
 
 Or provide the following options:
 
-* url: The URL of the request to submit
-* method: The HTTP method to use, such as POST, GET, DELETE.  Defaults to `GET`
-* get_output:  Return the output of the request.  Defaults to `true`
-* save_cookies:  Save any set cookies on this domain.  Defaults to `false`
-* status: Check the return status is equal to this value.  Defaults to `200`
-* user: Username for Basic Auth
-* pass: Password for Basic Auth
-* form:  Key/Value pairs for a form POST submission.  If method isn't set, then this will set the method to `POST`
+* `url`: The URL of the request to submit
+* `method`: The HTTP method to use, such as POST, GET, DELETE.  Defaults to `GET`
+* `get_output`:  Return the output of the request.  Defaults to `true`
+* `save_cookies`:  Save any set cookies on this domain.  Defaults to `false`
+* `status`: Check the return status is equal to this value.  Defaults to `200`
+* `user`: Username for Basic Auth
+* `pass`: Password for Basic Auth
+* `form`:  Key/Value pairs for a form POST submission.  If method isn't set, then this will set the method to `POST`
 
 As a more elaborate example:
 
-```
+```yaml
 login_to_reddit:
   http: 
     url: https://www.reddit.com/api/login/{{user}}
@@ -225,7 +225,7 @@ The system step type will return information about the system such as available 
 
 
 As an example, to check memory:
-```
+```yaml
 check_memory:
   description: Checks to see if the available memory is greater than 1gb
   system: mem_available
@@ -234,18 +234,18 @@ check_memory:
 
 The system type has a fixed list of values that returns various system info:
 
-* load_avg_1m: The load average over 1 minute
-* load_avg_5m: The load average over 5 minutes
-* load_avg_15m: The load average over 15 minutes
-* mem_available:  The amount of available memory
-* mem_free:  The amount of free memory
-* mem_total:  The amount of total memory
-* disk_free:  The amount of free disk space
-* disk_total:  The total amount of disk space
+* `load_avg_1m`: The load average over 1 minute
+* `load_avg_5m`: The load average over 5 minutes
+* `load_avg_15m`: The load average over 15 minutes
+* `mem_available`:  The amount of available memory
+* `mem_free`:  The amount of free memory
+* `mem_total`:  The amount of total memory
+* `disk_free`:  The amount of free disk space
+* `disk_total`:  The total amount of disk space
 
 Using the `greater_than` or `less_than` expect types means you can set thresholds for environment resources:
 
-```
+```yaml
 system_load:
   description: Checks the System Load over the last 15 minutes is below 80%
   system: load_avg15m
@@ -256,7 +256,7 @@ system_load:
 
 The value step type will simply return a value, rather than executing anything.
 
-```
+```yaml
 say_hello:
   value: hello
 ```
@@ -281,7 +281,7 @@ If there is an error converting the regex into a valid regex query, then this wi
 
 If your output is numerical, then you can use greater than or less than to compare it:
 
-```
+```yaml
 there_are_four_lights:
   value: 4
   less_than: 5
@@ -295,7 +295,7 @@ Dependencies are important when you need to do things like set cookies before ch
 
 To defined dependencies you can use the `require` and `required_by` arguments to control this dependency tree.  The required steps are given by their name, and can either be a single value or a list of names:
 
-```
+```yaml
 step1:
   value: hello
 
@@ -321,7 +321,7 @@ Lorikeet will fail to run and panic if:
 
 So this step plan:
 
-```
+```yaml
 step1:
   value: hello
 
@@ -332,7 +332,7 @@ step2:
 
 Is equivalent to this one:
 
-```
+```yaml
 step1:
   value: hello
   required_by: step2
@@ -343,7 +343,7 @@ step2:
 
 #### More complex dependency example
 
-```
+```yaml
 you_say_yes:
   value: yes
 
@@ -378,7 +378,7 @@ say_hello:
 
 Output:
 
-```
+```yaml
 $ lorikeet test.yml
 - name: say_hello
   pass: true
@@ -400,7 +400,7 @@ say_hello:
 
 Output:
 
-```
+```yaml
 $ lorikeet test.yml
 - name: say_hello
   pass: true
@@ -419,7 +419,7 @@ check_reddit:
 
 Output:
 
-```
+```yaml
 $ lorikeet test.yml
 - name: say_hello
   pass: true
@@ -451,7 +451,7 @@ login_to_reddit:
 
 Output (Don't forget to specify the config file with `-c`) :
 
-```
+```yaml
 $ lorikeet -c config.yml test.yml
 - name: login_to_reddit
   pass: true
