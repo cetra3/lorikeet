@@ -136,6 +136,8 @@ pub fn run_steps(steps: &mut Vec<Step>) {
             };
         };
 
+        threadpool.join();
+
     }
 
     let steps_ptr = Arc::try_unwrap(steps_status).expect("Could not retrieve the status list");
