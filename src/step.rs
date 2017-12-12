@@ -345,16 +345,16 @@ impl ExpectType {
             },
             ExpectType::GreaterThan(ref num) => {
 
-                match val.parse::<f64>() {
+                match val.trim().parse::<f64>() {
                     Ok(compare) => {
                         if compare > *num {
                             Ok(String::from(val))
                         } else {
-                            Err(format!("the value `{}` is less than `{}`", compare, num))
+                            Err(format!("The value `{}` is not greater than `{}`", compare, num))
                         }
                     },
                     Err(_) => {
-                        Err(format!("Could not parse `{}` as a number", num))
+                        Err(format!("Could not parse `{}` as a number", val))
                     }
                 }
             },
@@ -364,7 +364,7 @@ impl ExpectType {
                         if compare < *num {
                             Ok(String::from(val))
                         } else {
-                            Err(format!("the value `{}` is greater than `{}`", compare, num))
+                            Err(format!("The value `{}` not less than `{}`", compare, num))
                         }
                     },
                     Err(_) => {
