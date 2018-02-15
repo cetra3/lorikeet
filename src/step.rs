@@ -6,6 +6,9 @@ use std::time::{Duration, Instant};
 use serde::de::{Error, Deserialize, Deserializer};
 use serde::ser::Serializer;
 
+use jmespath;
+
+
 use std::str::FromStr;
 use std::io::Read;
 
@@ -22,7 +25,8 @@ use reqwest::{self, RedirectPolicy};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Outcome {
-    pub result: Result<String, String>,
+    pub output: Option<String>,
+    pub error: Option<String>,
     pub duration: Duration
 }
 
@@ -31,6 +35,7 @@ pub struct Step {
     pub name: String,
     pub description: Option<String>,
     pub run: RunType,
+    pub filters: Vec<FilterType>,
     pub expect: ExpectType,
     pub outcome: Option<Outcome>,
     pub require: Vec<String>,
@@ -98,8 +103,6 @@ pub struct HttpOptions {
     url: String,
     #[serde(default, deserialize_with = "string_to_method", serialize_with = "method_to_string")]
     method: Method,
-    #[serde(default = "default_output")]
-    get_output: bool,
     #[serde(default = "default_cookies")]
     save_cookies: bool,
     #[serde(default = "default_status")]
@@ -114,9 +117,7 @@ pub struct HttpOptions {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BashOptions {
-    cmd: String,
-    #[serde(default = "default_output")]
-    get_output: bool
+    cmd: String
 }
 
 fn method_to_string<S>(method: &Method, s: S) -> Result<S::Ok, S::Error>
@@ -131,25 +132,48 @@ fn string_to_method<'de,D>(d: D) -> Result<Method, D::Error>
 
 fn default_cookies() -> bool { false }
 
-fn default_output() -> bool {
-    true
-}
-
 fn default_status() -> u16 {
     200
 }
 
 impl RunType {
-    pub fn execute(&self, expect: ExpectType) -> Outcome {
+    pub fn execute(&self, expect: ExpectType, filters: Vec<FilterType>) -> Outcome {
 
         let start = Instant::now();
 
-        let result = self.run().and_then(|val| expect.check(&val));
 
-        Outcome {
-            result: result,
-            duration: start.elapsed()
-        }
+        return self.run()
+            .and_then(|mut val| {
+
+                for filter in filters {
+                    val = filter.filter(&val)?;
+                };
+
+                Ok(val)
+            })
+            .map(|val| {
+
+            let expect = expect.check(&val);
+
+            let error = match expect {
+                Ok(_) => None,
+                Err(err) => Some(err)
+            };
+
+            return Outcome {
+                output: val.into(),
+                error: error,
+                duration: start.elapsed()
+            }
+
+        }).unwrap_or_else(|val| {
+            return Outcome {
+                output: None,
+                error: val.into(),
+                duration: start.elapsed()
+            }
+        });
+  
     }
 
     fn run(&self) -> Result<String, String> {
@@ -163,7 +187,6 @@ impl RunType {
                     BashVariant::CmdOnly(ref val) => {
                         BashOptions {
                             cmd: val.clone(),
-                            get_output: default_output()
                         }
                     },
                     BashVariant::Options(ref opts) => {
@@ -174,11 +197,7 @@ impl RunType {
                 match Command::new("bash").arg("-c").arg(bashopts.cmd).output() {
                     Ok(output) => {
                         if output.status.success() {
-                            if bashopts.get_output {
-                                Ok(format!("{}", String::from_utf8_lossy(&output.stdout)))
-                            } else {
-                                Ok(String::new())
-                            }
+                            Ok(format!("{}", String::from_utf8_lossy(&output.stdout)))
                         } else {
                             Err(format!("Exit Code:{}, StdErr:{}, StdOut:{}", output.status.code().unwrap_or(1), String::from_utf8_lossy(&output.stderr), String::from_utf8_lossy(&output.stdout)))
                         }
@@ -195,7 +214,6 @@ impl RunType {
                         HttpOptions {
                             url: val.clone(),
                             method: Method::Get,
-                            get_output: default_output(),
                             status: default_status(),
                             save_cookies: default_cookies(),
                             user: None,
@@ -247,9 +265,7 @@ impl RunType {
                     return Err(format!("returned status `{}` does not match expected `{}`", response.status().as_u16(), httpops.status));
                 }
 
-                if httpops.get_output {
-                    response.read_to_string(&mut output).map_err(|err| format!("{:?}", err))?;
-                }
+                response.read_to_string(&mut output).map_err(|err| format!("{:?}", err))?;
 
                 if httpops.save_cookies {
 
@@ -322,6 +338,27 @@ impl Step {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+pub enum FilterType {
+    NoOutput,
+    Regex(RegexVariant),
+    JmesPath(String)
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RegexVariant {
+    MatchOnly(String),
+    Options(RegexOptions)
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RegexOptions {
+    matches: String,
+    group: String
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ExpectType {
     Anything,
     Matches(String),
@@ -329,26 +366,80 @@ pub enum ExpectType {
     LessThan(f64)
 }
 
+impl FilterType {
+    fn filter(&self, val: &str) -> Result<String, String> {
+        match *self {
+            FilterType::NoOutput => Ok(String::from("")),
+            FilterType::JmesPath(ref jmes) => {
+
+                let expr = jmespath::compile(jmes).map_err(|err| format!("Could not compile jmespath:{}", err))?;
+
+                let data = jmespath::Variable::from_json(val).map_err(|err| format!("Could not format as json:{}", err))?;
+
+                let result = expr.search(data).map_err(|err| format!("Could not find jmes expression:{}", err))?;
+
+                let output = (*result).to_string();
+
+                if output != "null" {
+                    Ok(output)
+                } else {
+                    Err(format!("Could not find jmespath expression `{}` in output", expr))
+                }
+                
+            },
+            FilterType::Regex(ref regex_var) => {
+
+                let opts = match regex_var {
+                    &RegexVariant::MatchOnly(ref string) => {
+                        RegexOptions {
+                            matches: string.clone(),
+                            group: "0".into()
+                        }
+                    },
+                    &RegexVariant::Options(ref opts) => opts.clone()
+                };
+
+                let regex = Regex::new(&opts.matches).map_err(|err| format!("Could not create regex from `{}`.  Error is:{:?}", &opts.matches, err))?;
+
+                let captures = regex.captures(val).ok_or_else(|| format!("Could not find `{}` in output", &opts.matches))?;
+
+                match opts.group.parse::<usize>() {
+                    Ok(num) => {
+                        return captures.get(num).map(|val| val.as_str().into()).ok_or_else(|| format!("Could not find group number `{}` in regex `{}`", opts.group, opts.matches));
+                    },
+                    Err(_) => {
+                        return captures.name(&opts.group).map(|val| val.as_str().into()).ok_or_else(|| format!("Could not find group name `{}` in regex `{}`", opts.group, opts.matches));
+                    }
+                }
+
+
+            }
+        }
+    }
+}
+
 impl ExpectType {
-    fn check(&self, val: &str) -> Result<String, String> {
+    fn check(&self, val: &str) -> Result<(), String> {
+
+        let number_filter = Regex::new("[^0-9.,]").unwrap();
 
         match *self {
-            ExpectType::Anything => Ok(String::from(val)),
+            ExpectType::Anything => Ok(()),
             ExpectType::Matches(ref match_string) => {
                 let regex = Regex::new(match_string).map_err(|err| format!("Could not create regex from `{}`.  Error is:{:?}", match_string, err))?;
 
                 if regex.is_match(val) {
-                    Ok(String::new())
+                    Ok(())
                 } else {
                     Err(format!("Not matched against `{}`", match_string))
                 }
             },
             ExpectType::GreaterThan(ref num) => {
 
-                match val.trim().parse::<f64>() {
+                match number_filter.replace_all(val, "").parse::<f64>() {
                     Ok(compare) => {
                         if compare > *num {
-                            Ok(String::from(val))
+                            Ok(())
                         } else {
                             Err(format!("The value `{}` is not greater than `{}`", compare, num))
                         }
@@ -359,10 +450,10 @@ impl ExpectType {
                 }
             },
             ExpectType::LessThan(ref num) => {
-                match val.parse::<f64>() {
+                match number_filter.replace_all(val, "").parse::<f64>() {
                     Ok(compare) => {
                         if compare < *num {
-                            Ok(String::from(val))
+                            Ok(())
                         } else {
                             Err(format!("The value `{}` not less than `{}`", compare, num))
                         }

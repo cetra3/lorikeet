@@ -28,6 +28,10 @@ extern crate hostname;
 
 extern crate sys_info;
 
+extern crate jmespath;
+
+extern crate chrono;
+
 pub mod runner;
 pub mod yaml;
 pub mod step;

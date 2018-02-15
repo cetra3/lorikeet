@@ -1,7 +1,6 @@
 extern crate lorikeet;
 
 #[macro_use]
-extern crate structopt_derive;
 extern crate structopt;
 
 extern crate serde_yaml;
@@ -45,7 +44,7 @@ fn main() {
 
     let opt = Arguments::from_args();
 
-    env_logger::init().expect("Could not initialise logger");
+    env_logger::init();
 
     let mut steps = get_steps(&opt.test_plan, &opt.config);
 
@@ -64,7 +63,7 @@ fn main() {
     for step in steps.into_iter() {
 
         if let Some(ref outcome) = step.outcome {
-            if let Err(_) = outcome.result {
+            if let Some(_) = outcome.error {
                 has_errors = true;
             }
         }

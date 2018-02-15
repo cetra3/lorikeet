@@ -1,3 +1,4 @@
+use step::FilterType;
 use std::sync::mpsc::Sender;
 
 use std::sync::{Arc, Mutex};
@@ -16,6 +17,7 @@ use threadpool::ThreadPool;
 pub struct StepRunner {
     pub run: RunType,
     pub expect: ExpectType,
+    pub filters: Vec<FilterType>,
     pub graph: Arc<GraphMap<usize, Require, Directed>>,
     pub steps: Arc<Mutex<Vec<Status>>>,
     pub pool: ThreadPool,
@@ -50,7 +52,7 @@ impl StepRunner {
             match self.steps.lock().unwrap()[neighbor] {
                 Status::Completed(ref status_outcome) => {
 
-                    if let Err(_) = status_outcome.result {
+                    if let Some(_) = status_outcome.error {
                         self.notify.send(self.index).expect("Could not notify executor");
                         has_error = true;
                         break;
@@ -65,7 +67,7 @@ impl StepRunner {
         }
 
         if has_error {
-            self.steps.lock().unwrap()[self.index] = Status::Completed(Outcome { result: Err(String::from("Dependency not met")), duration: Duration::from_secs(0) });
+            self.steps.lock().unwrap()[self.index] = Status::Completed(Outcome { output: Some("".into()), error: Some("Dependency Not Met".into()), duration: Duration::from_secs(0) });
             return;
         }
 
@@ -78,11 +80,12 @@ impl StepRunner {
             let tx = self.notify.clone();
             let index = self.index;
             let steps = self.steps.clone();
+            let filters = self.filters.clone();
 
             //let task = task::current();
             self.pool.execute(move || {
 
-                let outcome = run.execute(expect);
+                let outcome = run.execute(expect, filters);
                 debug!("Step done:{:?}", outcome);
                 steps.lock().unwrap()[index] = Status::Completed(outcome);
                 tx.send(index).expect("Could not notify executor");
@@ -112,6 +115,7 @@ pub fn run_steps(steps: &mut Vec<Step>) {
             let future = StepRunner {
                 run: steps[i].run.clone(),
                 expect: steps[i].expect.clone(),
+                filters: steps[i].filters.clone(),
                 graph: shared_graph.clone(),
                 steps: steps_status.clone(),
                 index: i,

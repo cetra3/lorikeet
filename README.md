@@ -15,7 +15,7 @@ As an example, here's a test plan to check to see whether reddit is up, and then
 ```yaml
 check_reddit:
   http: https://www.reddit.com
-  matches: the front page of the internet
+  regex: the front page of the internet
 
 login_to_reddit:
   http: 
@@ -25,12 +25,13 @@ login_to_reddit:
       user: {{user}}
       passwd: {{pass}}
       api_type: json
-  matches: '"errors": \[\]'
+  jmespath: length(json.errors)
+  matches: 0
   require:
     - check_reddit
 ```
 
-( As a side note, we have added `matches: '"errors": \[\]'` because an invalid login to reddit still returns a status of `200 OK` )
+( As a side note, we have added `jmespath: length(json.errors)` & `matches: 0` because an invalid login to reddit still returns a status of `200 OK` )
 
 And the output of lorikeet:
 
@@ -38,16 +39,34 @@ And the output of lorikeet:
 $ lorikeet -c config.yml test.yml
 - name: check_reddit
   pass: true
+  output: the front page of the internet
   duration: 1416.591ms
 
 - name: login_to_reddit
   pass: true
+  output: 0
   duration: 1089.0276ms
 ```
 
 The name comes from the [Rainbow Lorikeet](https://en.wikipedia.org/wiki/Rainbow_lorikeet), an Australian Bird which is very colourful.  Like a canary in a coal mine, lorikeet is meant to provide a way of notifying when things go wrong. Rather than running one test framework (one colour), it is meant to be more full spectrum, hence the choice of a bird with rainbow plumage.
 
 They are also very noisy birds.
+
+## Changes in `0.6.0`
+
+*Breaking Change* Adjusted the step to always include an output, even on failure.  This is reflected in the webhook submission also.  This allows for polling things like memory which may fail the test, but you still want to record the output of the memory
+
+* Added `filters` to steps.  Allows you to filter or change the output of a step.  At the moment both [jmespath](http://jmespath.org/) and regex are supported.
+
+Here's an example:
+
+```yaml
+over_9000:
+  description: Checks to see if bitcoin is over 9000 USD
+  http: http://preev.com/pulse/units:btc+usd/sources:bitstamp
+  jmespath: btc.usd.bitstamp.last
+  greater_than: 9000
+```
 
 ## Installation
 
@@ -136,10 +155,12 @@ You can submit your results to a server using a webhook when the test run is fin
 ```json
 {
     "hostname": "example.hostname",
-    "has_errors": false,
+    "has_errors": true,
     "tests": [{
         "name": "Example Webhook",
-        "pass": true,
+        "pass": false,
+        "output": "Example Output",
+        "error": "Example Error",
         "duration": 7.70
     }]
 }
@@ -154,6 +175,7 @@ The test plan is a yaml file that is divided up into steps:
   <step_type>: <options>
   (<description>: <value>)
   (<expect_type>: <value>)
+  (<filter_type>: <list or value>)
   (<dependence_type>: <list or value>)
 ```
 
@@ -259,6 +281,106 @@ The value step type will simply return a value, rather than executing anything.
 ```yaml
 say_hello:
   value: hello
+```
+
+### Filter types
+
+You can filter your output either via regex, jmespath, or remove the output completely.   Filters can be provided once off, or as a list, so you can chain filters together:
+
+```yaml
+example_step:
+  value: some example
+  filters:
+    - regex: some (.*)
+```
+
+You can also shorthand provide a filter on the step like so:
+
+```yaml
+example_step:
+  value: some example
+  regex: some
+```
+
+**Note: If the filter can't match against a value, it counts as a test error**
+
+#### Regex Filter
+
+Simply filters out the output of the step based upon the matched value.  
+
+```yaml
+say_hello:
+  value: hello world!
+  regex: (.*) world!
+```
+
+You can either add it as a `regex` attribute against the step, or in the filter list:
+
+```yaml
+say_hello:
+  value: hello world!
+  filters:
+    - regex: (.*) world!
+```
+
+By default it will match and return the entire regex statement (`hello world!), but if you only want to match a certain group, you can do that too:
+
+```yaml
+say_hello:
+  value: hello world!
+  regex: 
+    matches: (?P<greeting>.*) world!
+    group: greeting
+```
+
+This will output simply `hello`
+
+#### JMES Path filter
+
+You can use [jmespath](http://jmespath.org/) to filter out JSON documents, returning some or more values:
+
+```yaml
+show_status:
+  value: "{\"status\": \"ok\"}"
+  jmespath: status
+```
+
+As with regex, this can be part of a filter chain:
+
+```yaml
+show_status:
+  value: "{\"status\": \"ok\"}"
+  filters:
+    - jmespath: status
+```
+
+#### No Output Filter
+
+If you don't want your output printed in results, you can add no output:
+
+```yaml
+dont_show_hello:
+  value: hello
+  do_output: false
+```
+
+You can also add this to a filter chain:
+
+```yaml
+dont_show_hello:
+  value: hello
+  filters:
+    - nooutput
+```
+
+Sometimes you might return too much from a request, so you can use this to ensure what's printed out is not included:
+
+```yaml
+check_reddit:
+  http: https://www.reddit.com
+  filters:
+    - regex: the front page of the internet
+
 ```
 
 ### Expect types

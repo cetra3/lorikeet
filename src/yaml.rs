@@ -1,4 +1,6 @@
 
+use step::RegexVariant;
+use step::FilterType;
 use std::fs::File;
 
 use serde_yaml::{self,Value};
@@ -16,6 +18,11 @@ struct StepYaml {
     http: Option<HttpVariant>,
     system: Option<SystemVariant>,
     matches: Option<String>,
+    #[serde(default)]
+    filters: Vec<FilterType>,
+    jmespath: Option<String>,
+    regex: Option<RegexVariant>,
+    do_output: Option<bool>,
     less_than: Option<String>,
     greater_than: Option<String>,
     require: Option<Requirement>,
@@ -56,13 +63,34 @@ fn get_expecttype(step: &StepYaml) -> ExpectType {
     return ExpectType::Anything
 }
 
+fn get_filters(step: &StepYaml) -> Vec<FilterType> {
+
+    let mut filters: Vec<FilterType> = step.filters.clone();
+
+    if let Some(ref jmespath) = step.jmespath {
+        filters.push(FilterType::JmesPath(jmespath.clone()))
+    };
+
+    if let Some(ref variant) = step.regex {
+        filters.push(FilterType::Regex(variant.clone()))
+    };
+
+    if let Some(output) = step.do_output {
+        if output == false {
+                filters.push(FilterType::NoOutput)
+        }
+    };
+
+    return filters
+}
+
 
 pub fn get_steps(test_plan: &str, config: &Option<String>) -> Vec<Step> {
 
     let mut tera = Tera::default();
 
-    tera.add_template_file(test_plan, Some("test_plan")).expect("Could not load test plan file!");
 
+    tera.add_template_file(test_plan, Some("test_plan")).expect("Could not load test plan file!");
 
     let test_plan_yaml = match *config {
         Some(ref config_file) => {
@@ -70,10 +98,11 @@ pub fn get_steps(test_plan: &str, config: &Option<String>) -> Vec<Step> {
             let config_file = File::open(&config_file).expect("Could not open config file");
 
             let config: Value = serde_yaml::from_reader(config_file).expect("Could not read config file as yaml");
+
             tera.render("test_plan", &config).expect("Could not render the test plan with config!")
         },
         None => {
-            let context = Context::new();
+            let mut context = Context::new();
             tera.render("test_plan", &context).expect("Could not render the test plan!")
         }
     };
@@ -82,13 +111,23 @@ pub fn get_steps(test_plan: &str, config: &Option<String>) -> Vec<Step> {
 
     let input_steps: LinkedHashMap<String, StepYaml> = serde_yaml::from_str(&test_plan_yaml).unwrap();
     let mut steps: Vec<Step> =  Vec::new();
+    
+
 
     for (name, step) in input_steps {
+
+        let run = get_runtype(&step);
+
+        let expect = get_expecttype(&step);
+
+        let filters = get_filters(&step);
+
         steps.push(Step {
             name: name,
-            run: get_runtype(&step),
-            expect: get_expecttype(&step),
+            run: run,
+            expect: expect,
             description: step.description,
+            filters: filters,
             outcome: None,
             require: step.require.map(|require| require.to_vec()).unwrap_or(Vec::new()),
             required_by: step.required_by.map(|require| require.to_vec()).unwrap_or(Vec::new()),

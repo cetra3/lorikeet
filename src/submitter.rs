@@ -15,6 +15,7 @@ pub struct StepResult {
     description: Option<String>,
     pass: bool,
     output: String,
+    error: Option<String>,
     duration: f32
 }
 
@@ -91,6 +92,10 @@ impl StepResult {
             }
         }
 
+        if let Some(ref error) = self.error {
+            message.push_str(&format!("  error: {}\n", error));
+        }
+
         message.push_str(&format!("  duration: {}ms\n", self.duration));
 
         if *colours {
@@ -109,27 +114,20 @@ impl From<Step> for StepResult {
         let name = step.name;
         let description = step.description;
 
-        let (pass, output) = match step.outcome {
+        let (pass, output, error) = match step.outcome {
             Some(outcome) => {
-                match outcome.result {
-                    Ok(result) => {
-                        (true, result)
-                    },
-                    Err(result) => {
-                        (false, result)
-                    }
-                }
-
+                (outcome.error.is_none(), outcome.output.unwrap_or_default(), outcome.error)
             },
-            None => (false, String::from("Not finished"))
+            None => (false, String::new(), Some(String::from("Not finished")))
         };
 
         StepResult {
-            name: name,
-            duration: duration,
-            description: description,
-            pass: pass,
-            output: output
+            name,
+            duration,
+            description,
+            pass,
+            output,
+            error
         }
     }
 
