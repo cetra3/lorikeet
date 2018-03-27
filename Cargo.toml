@@ -5,6 +5,7 @@ authors = ["cetra3 <cetra3@hotmail.com>"]
 license = "MIT/Apache-2.0"
 description = "a parallel test runner for devops"
 repository = "https://github.com/cetra3/lorikeet"
+readme = "README.md"
 
 [dependencies]
 petgraph = "0.4.11"
