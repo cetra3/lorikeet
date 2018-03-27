@@ -12,15 +12,19 @@ use petgraph::prelude::GraphMap;
 use petgraph::{Directed, Direction};
 
 
+use std::collections::HashMap;
+
 use threadpool::ThreadPool;
 
-pub struct StepRunner {
+
+pub struct StepRunner<'a> {
     pub run: RunType,
     pub expect: ExpectType,
     pub filters: Vec<FilterType>,
     pub graph: Arc<GraphMap<usize, Require, Directed>>,
     pub steps: Arc<Mutex<Vec<Status>>>,
     pub pool: ThreadPool,
+    pub name_lookup: Arc<HashMap<&'a str, usize>>,
     pub index: usize,
     pub notify: Sender<usize>
 }
@@ -32,7 +36,7 @@ pub enum Status {
     Completed(Outcome)
 }
 
-impl StepRunner {
+impl<'a> StepRunner<'a> {
 
     pub fn poll(&self) {
 
@@ -75,7 +79,20 @@ impl StepRunner {
 
             self.steps.lock().unwrap()[self.index] = Status::InProgress;
 
-            let run = self.run.clone();
+            let mut run = self.run.clone();
+
+            //If the run type is `step`, we need to get the output of this step
+            if let RunType::Step(ref step) = self.run {
+                let step_ref: &str = step;
+                let run_index = self.name_lookup.get(&*step_ref).unwrap();
+
+                if let Status::Completed(ref outcome) = self.steps.lock().unwrap()[*run_index] {
+                    if let Some(ref output) = outcome.output {
+                        run = RunType::Step(output.clone());
+                    }
+                }
+            }
+
             let expect = self.expect.clone();
             let tx = self.notify.clone();
             let index = self.index;
@@ -100,15 +117,23 @@ pub fn run_steps(steps: &mut Vec<Step>) {
 
     let steps_status:  Arc<Mutex<Vec<Status>>> = Arc::new(Mutex::new(vec![Status::Outstanding; steps.len()]));
 
+
     //We want the runners to drop after this so we can return the steps status
     {
+        let mut lookup: HashMap<&str, usize> = HashMap::new();
+
+        for i in 0..steps.len() {
+            lookup.insert(&steps[i].name, i);
+        }
+
+        let name_lookup = Arc::new(lookup);
 
         let shared_graph = Arc::new(create_graph(&steps));
 
         let mut runners = Vec::new();
 
         let (tx, rx) = channel();
-        let threadpool = ThreadPool::new(4);
+        let threadpool = ThreadPool::default();
 
         for i in 0..steps.len() {
 
@@ -119,6 +144,7 @@ pub fn run_steps(steps: &mut Vec<Step>) {
                 graph: shared_graph.clone(),
                 steps: steps_status.clone(),
                 index: i,
+                name_lookup: name_lookup.clone(),
                 notify: tx.clone(),
                 pool: threadpool.clone()
             };

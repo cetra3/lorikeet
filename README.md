@@ -52,6 +52,21 @@ The name comes from the [Rainbow Lorikeet](https://en.wikipedia.org/wiki/Rainbow
 
 They are also very noisy birds.
 
+## Changes in `0.6.1`
+
+* Added the `step` step type (so meta!), which takes the output from another step and allows you to run more assertions over it:
+
+```yaml
+say_hello:
+  value: hello
+  
+test_step:
+  step: say_hello
+  matches: hello
+```
+
+* Fixed thread pool count, was locked at `4`
+
 ## Changes in `0.6.0`
 
 *Breaking Change* Adjusted the step to always include an output, even on failure.  This is reflected in the webhook submission also.  This allows for polling things like memory which may fail the test, but you still want to record the output of the memory
@@ -185,7 +200,7 @@ You can also include a description of what the test does alongside a name, so yo
 
 ### Step Types
 
-There are currently 4 step types that can be configured: bash, http, system and value
+There are currently 5 step types that can be configured: bash, http, system, step and value
 
 #### Bash Step type
 
@@ -273,6 +288,22 @@ system_load:
   system: load_avg15m
   less_than: 1.6
 ```
+
+#### 'Step' Step Type
+
+If you want to make more assertions on the one step, you can use the 'step' step type.  This type simply returns the output of the other step:
+
+```yaml
+say_hello:
+  value: hello
+  
+test_step:
+  step: say_hello
+  matches: hello
+```
+
+This will also implicitly require that the step it gets it output from is run first as a dependency so you don't have to worry about the order.
+
 
 #### Value Step Type
 

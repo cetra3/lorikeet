@@ -61,6 +61,7 @@ impl Requirement {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RunType {
+    Step(String),
     Value(String),
     Bash(BashVariant),
     Http(HttpVariant),
@@ -178,6 +179,9 @@ impl RunType {
 
     fn run(&self) -> Result<String, String> {
         match *self {
+            RunType::Step(ref val) => {
+                Ok(val.clone())
+            }
             RunType::Value(ref val) => {
                 Ok(val.clone())
             },

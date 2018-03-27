@@ -15,6 +15,7 @@ struct StepYaml {
     description: Option<String>,
     value: Option<String>,
     bash: Option<BashVariant>,
+    step: Option<String>,
     http: Option<HttpVariant>,
     system: Option<SystemVariant>,
     matches: Option<String>,
@@ -30,6 +31,10 @@ struct StepYaml {
 }
 
 fn get_runtype(step: &StepYaml) -> RunType {
+
+    if let Some(ref step) = step.step {
+        return RunType::Step(step.clone())
+    }
 
     if let Some(ref variant) = step.bash {
         return RunType::Bash(variant.clone())
@@ -77,7 +82,7 @@ fn get_filters(step: &StepYaml) -> Vec<FilterType> {
 
     if let Some(output) = step.do_output {
         if output == false {
-                filters.push(FilterType::NoOutput)
+            filters.push(FilterType::NoOutput)
         }
     };
 
