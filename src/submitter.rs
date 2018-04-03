@@ -116,7 +116,13 @@ impl From<Step> for StepResult {
 
         let (pass, output, error) = match step.outcome {
             Some(outcome) => {
-                (outcome.error.is_none(), outcome.output.unwrap_or_default(), outcome.error)
+
+                let output = match step.do_output {
+                    true => outcome.output.unwrap_or_default(),
+                    false => String::new()
+                };
+
+                (outcome.error.is_none(), output, outcome.error)
             },
             None => (false, String::new(), Some(String::from("Not finished")))
         };

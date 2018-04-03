@@ -80,12 +80,6 @@ fn get_filters(step: &StepYaml) -> Vec<FilterType> {
         filters.push(FilterType::Regex(variant.clone()))
     };
 
-    if let Some(output) = step.do_output {
-        if output == false {
-            filters.push(FilterType::NoOutput)
-        }
-    };
-
     return filters
 }
 
@@ -130,6 +124,7 @@ pub fn get_steps(test_plan: &str, config: &Option<String>) -> Vec<Step> {
         steps.push(Step {
             name: name,
             run: run,
+            do_output: step.do_output.unwrap_or(true),
             expect: expect,
             description: step.description,
             filters: filters,

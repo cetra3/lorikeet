@@ -37,6 +37,7 @@ pub struct Step {
     pub run: RunType,
     pub filters: Vec<FilterType>,
     pub expect: ExpectType,
+    pub do_output: bool,
     pub outcome: Option<Outcome>,
     pub require: Vec<String>,
     pub required_by: Vec<String>
