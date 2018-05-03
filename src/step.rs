@@ -119,7 +119,8 @@ pub struct HttpOptions {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BashOptions {
-    cmd: String
+    cmd: String,
+    full_error: bool
 }
 
 fn method_to_string<S>(method: &Method, s: S) -> Result<S::Ok, S::Error>
@@ -192,6 +193,7 @@ impl RunType {
                     BashVariant::CmdOnly(ref val) => {
                         BashOptions {
                             cmd: val.clone(),
+                            full_error: false
                         }
                     },
                     BashVariant::Options(ref opts) => {
@@ -204,7 +206,11 @@ impl RunType {
                         if output.status.success() {
                             Ok(format!("{}", String::from_utf8_lossy(&output.stdout)))
                         } else {
-                            Err(format!("Exit Code:{}, StdErr:{}, StdOut:{}", output.status.code().unwrap_or(1), String::from_utf8_lossy(&output.stderr), String::from_utf8_lossy(&output.stdout)))
+                            if bashopts.full_error {
+                                Err(format!("Status Code:{}\nError:{}\nOutput:{}", output.status.code().unwrap_or(1), String::from_utf8_lossy(&output.stderr), String::from_utf8_lossy(&output.stdout)))
+                            } else {
+                                Err(String::from_utf8_lossy(&*output.stderr))
+                            }
                         }
                     },
                     Err(err) => {
