@@ -3,8 +3,16 @@ use step::RegexVariant;
 use step::FilterType;
 use std::fs::File;
 
+use serde::Serialize;
+
 use serde_yaml::{self,Value};
-use tera::{Tera,Context};
+use tera::{Tera,Context, Error as TeraError};
+
+use std::path::Path;
+
+
+use std::io::Read;
+use failure::{Error, err_msg};
 
 use step::{RunType, ExpectType, Step, Requirement, BashVariant, HttpVariant, SystemVariant};
 use linked_hash_map::LinkedHashMap;
@@ -83,36 +91,31 @@ fn get_filters(step: &StepYaml) -> Vec<FilterType> {
     return filters
 }
 
+fn nice_error(e: TeraError) -> Error {
 
-pub fn get_steps(test_plan: &str, config: &Option<String>) -> Vec<Step> {
+    let mut result = String::new();
+
+    for e in e.iter() {
+        result.push_str(&e.to_string());
+        result.push_str("\n");
+    }
+
+
+    err_msg(result)
+}
+
+pub fn get_steps_raw<T: Serialize>(yaml_contents: &str, context: &T) -> Result<Vec<Step>, Error> {
 
     let mut tera = Tera::default();
 
 
-    tera.add_template_file(test_plan, Some("test_plan")).expect("Could not load test plan file!");
+    tera.add_raw_template("test_plan", yaml_contents).map_err(nice_error)?;
 
-    let test_plan_yaml = match *config {
-        Some(ref config_file) => {
+    let test_plan_yaml = tera.render("test_plan", context).map_err(nice_error)?;
 
-            let config_file = File::open(&config_file).expect("Could not open config file");
-
-            let config: Value = serde_yaml::from_reader(config_file).expect("Could not read config file as yaml");
-
-            tera.render("test_plan", &config).expect("Could not render the test plan with config!")
-        },
-        None => {
-            let mut context = Context::new();
-            tera.render("test_plan", &context).expect("Could not render the test plan!")
-        }
-    };
-
-    debug!("{}", test_plan_yaml);
-
-    let input_steps: LinkedHashMap<String, StepYaml> = serde_yaml::from_str(&test_plan_yaml).unwrap();
+    let input_steps: LinkedHashMap<String, StepYaml> = serde_yaml::from_str(&test_plan_yaml)?;
     let mut steps: Vec<Step> =  Vec::new();
     
-
-
     for (name, step) in input_steps {
 
         let run = get_runtype(&step);
@@ -134,5 +137,31 @@ pub fn get_steps(test_plan: &str, config: &Option<String>) -> Vec<Step> {
         });
     }
 
-    steps
+    Ok(steps)
+
+}
+
+//We use P & Q here so that when specialising file path and config path can be different types, i.e, a &str & Option<String> for instance..
+pub fn get_steps<P: AsRef<Path>, Q: AsRef<Path>>(file_path: P, config_path: &Option<Q>) -> Result<Vec<Step>, Error> {
+
+    let mut file_contents = String::new();
+
+    let mut f = File::open(file_path)?;
+
+    f.read_to_string(&mut file_contents)?;
+
+    match config_path {
+        Some(path) => {
+            let c = File::open(path)?;
+
+            let value: Value = serde_yaml::from_reader(c).map_err(|err| err_msg(format!("Could not parse {:?} as YAML: {}", path.as_ref(), err)))?;
+
+            get_steps_raw(&file_contents, &value)
+
+        },
+        None => {
+            get_steps_raw(&file_contents, &Context::new())
+        }
+    }
+
 }

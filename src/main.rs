@@ -46,7 +46,7 @@ fn main() {
 
     env_logger::init();
 
-    let mut steps = get_steps(&opt.test_plan, &opt.config);
+    let mut steps = get_steps(&opt.test_plan, &opt.config).expect("Could not get steps");
 
     debug!("Steps:{:?}", steps);
 

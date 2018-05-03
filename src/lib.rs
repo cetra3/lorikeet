@@ -32,6 +32,8 @@ extern crate jmespath;
 
 extern crate chrono;
 
+extern crate failure;
+
 pub mod runner;
 pub mod yaml;
 pub mod step;

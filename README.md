@@ -52,6 +52,15 @@ The name comes from the [Rainbow Lorikeet](https://en.wikipedia.org/wiki/Rainbow
 
 They are also very noisy birds.
 
+## Changes in `0.7.0`
+
+* The main change here was to change the YAML parsing to remove panics, returning a `Result<Vec<Step>>` which is a breaking change
+* A new function `get_steps_raw` which takes a `&str` yaml & anything that implements `Serialize` as a config context.  This mainly allows the library to be used without touching the file system for configs or steps. `get_steps` still can be provided with paths
+
+## Changes in `0.6.2`
+
+* When using `do_output: false`, Output is only hidden when displaying the final step outcome, which allows it to be used with the `step` step type.
+
 ## Changes in `0.6.1`
 
 * Added the `step` step type (so meta!), which takes the output from another step and allows you to run more assertions over it:
