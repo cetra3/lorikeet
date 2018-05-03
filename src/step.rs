@@ -209,7 +209,7 @@ impl RunType {
                             if bashopts.full_error {
                                 Err(format!("Status Code:{}\nError:{}\nOutput:{}", output.status.code().unwrap_or(1), String::from_utf8_lossy(&output.stderr), String::from_utf8_lossy(&output.stdout)))
                             } else {
-                                Err(String::from_utf8_lossy(&*output.stderr))
+                                Err(String::from_utf8_lossy(&output.stderr).to_string())
                             }
                         }
                     },
