@@ -151,7 +151,7 @@ pub fn get_steps<P: AsRef<Path>, Q: AsRef<Path>>(file_path: P, config_path: &Opt
     f.read_to_string(&mut file_contents)?;
 
     match config_path {
-        Some(path) => {
+        &Some(ref path) => {
             let c = File::open(path)?;
 
             let value: Value = serde_yaml::from_reader(c).map_err(|err| err_msg(format!("Could not parse {:?} as YAML: {}", path.as_ref(), err)))?;
@@ -159,7 +159,7 @@ pub fn get_steps<P: AsRef<Path>, Q: AsRef<Path>>(file_path: P, config_path: &Opt
             get_steps_raw(&file_contents, &value)
 
         },
-        None => {
+        &None => {
             get_steps_raw(&file_contents, &Context::new())
         }
     }
