@@ -11,12 +11,12 @@ use hostname;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StepResult {
-    name: String,
-    description: Option<String>,
-    pass: bool,
-    output: String,
-    error: Option<String>,
-    duration: f32
+    pub name: String,
+    pub description: Option<String>,
+    pub pass: bool,
+    pub output: String,
+    pub error: Option<String>,
+    pub duration: f32
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -34,8 +34,11 @@ extern crate chrono;
 
 extern crate failure;
 
+extern crate quick_xml;
+
 pub mod runner;
 pub mod yaml;
 pub mod step;
 pub mod graph;
 pub mod submitter;
+pub mod junit;

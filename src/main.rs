@@ -14,6 +14,7 @@ extern crate openssl_probe;
 
 use structopt::StructOpt;
 
+use std::path::PathBuf;
 
 use isatty::stdout_isatty;
 
@@ -36,6 +37,9 @@ struct Arguments {
 
     #[structopt(short = "w", long = "webhook", help = "Webhook submission URL")]
     webhook: Vec<String>,
+
+    #[structopt(short = "j", long = "junit", help = "JUnit Output File", parse(from_os_str))]
+    junit: Option<PathBuf>,
 }
 
 fn main() {
@@ -80,6 +84,10 @@ fn main() {
 
     for url in opt.webhook {
         lorikeet::submitter::submit_webhook(&results, &url, None).expect("Could not send webhook")
+    }
+
+    if let Some(path) = opt.junit {
+        lorikeet::junit::create_junit(&results, &path, None).expect("Coult not create junit file");
     }
 
 
