@@ -89,7 +89,7 @@ pub fn create_junit(results: &Vec<StepResult>, file_path: &Path, hostname: Optio
                 writer.write_event(Event::End(BytesEnd::borrowed(b"skipped")))?;
             } else {
                 let mut failure = BytesStart::borrowed(b"failure", b"failure".len());
-                failure.push_attribute(("message", &filter_invalid_chars(&result.output) as &str));
+                failure.push_attribute(("message", &filter_invalid_chars(&error_text) as &str));
 
                 writer.write_event(Event::Start(failure))?;
 
