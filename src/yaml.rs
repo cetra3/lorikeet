@@ -14,7 +14,7 @@ use std::path::Path;
 use std::io::Read;
 use failure::{Error, err_msg};
 
-use step::{RunType, ExpectType, Step, Requirement, BashVariant, HttpVariant, SystemVariant};
+use step::{RunType, RetryPolicy, ExpectType, Step, Requirement, BashVariant, HttpVariant, SystemVariant};
 use linked_hash_map::LinkedHashMap;
 
 
@@ -34,8 +34,26 @@ struct StepYaml {
     do_output: Option<bool>,
     less_than: Option<String>,
     greater_than: Option<String>,
+    retry_count: Option<usize>,
+    retry_delay_ms: Option<usize>,
+    delay_ms: Option<usize>,
     require: Option<Requirement>,
     required_by: Option<Requirement>
+}
+
+fn get_retry_policy(step: &StepYaml) -> RetryPolicy {
+
+    let retry_delay_ms = step.retry_delay_ms.unwrap_or_default();
+    let retry_count = step.retry_count.unwrap_or_default();
+    let initial_delay_ms = step.delay_ms.unwrap_or_default();
+
+
+    RetryPolicy {
+        retry_count,
+        retry_delay_ms,
+        initial_delay_ms
+    }
+
 }
 
 fn get_runtype(step: &StepYaml) -> RunType {
@@ -124,6 +142,8 @@ pub fn get_steps_raw<T: Serialize>(yaml_contents: &str, context: &T) -> Result<V
 
         let filters = get_filters(&step);
 
+        let retry_policy = get_retry_policy(&step);
+
         steps.push(Step {
             name: name,
             run: run,
@@ -131,6 +151,7 @@ pub fn get_steps_raw<T: Serialize>(yaml_contents: &str, context: &T) -> Result<V
             expect: expect,
             description: step.description,
             filters: filters,
+            retry: retry_policy,
             outcome: None,
             require: step.require.map(|require| require.to_vec()).unwrap_or(Vec::new()),
             required_by: step.required_by.map(|require| require.to_vec()).unwrap_or(Vec::new()),

@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::sync::mpsc::channel;
 use std::time::Duration;
 
-use step::{Step, Outcome, RunType, ExpectType};
+use step::{Step, Outcome, RunType, ExpectType, RetryPolicy};
 
 use graph::{create_graph, Require};
 use petgraph::prelude::GraphMap;
@@ -20,6 +20,7 @@ use threadpool::ThreadPool;
 pub struct StepRunner<'a> {
     pub run: RunType,
     pub expect: ExpectType,
+    pub retry: RetryPolicy,
     pub filters: Vec<FilterType>,
     pub graph: Arc<GraphMap<usize, Require, Directed>>,
     pub steps: Arc<Mutex<Vec<Status>>>,
@@ -94,6 +95,7 @@ impl<'a> StepRunner<'a> {
             }
 
             let expect = self.expect.clone();
+            let retry = self.retry;
             let tx = self.notify.clone();
             let index = self.index;
             let steps = self.steps.clone();
@@ -102,8 +104,8 @@ impl<'a> StepRunner<'a> {
             //let task = task::current();
             self.pool.execute(move || {
 
-                let outcome = run.execute(expect, filters);
-                debug!("Step done:{:?}", outcome);
+                let outcome = run.execute(expect, filters, retry);
+                debug!("Step `{}` done: {:?}", index, outcome);
                 steps.lock().unwrap()[index] = Status::Completed(outcome);
                 tx.send(index).expect("Could not notify executor");
 
@@ -140,6 +142,7 @@ pub fn run_steps(steps: &mut Vec<Step>) {
             let future = StepRunner {
                 run: steps[i].run.clone(),
                 expect: steps[i].expect.clone(),
+                retry: steps[i].retry,
                 filters: steps[i].filters.clone(),
                 graph: shared_graph.clone(),
                 steps: steps_status.clone(),

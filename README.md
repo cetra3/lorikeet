@@ -52,6 +52,14 @@ The name comes from the [Rainbow Lorikeet](https://en.wikipedia.org/wiki/Rainbow
 
 They are also very noisy birds.
 
+## Changes in `0.8.0`
+
+* Added in initial delay for a step.  If you want to wait an arbitrary period of time before running a step, then you can set an initial delay with the `delay_ms` parameter.  This delay is only executed when the step would normally start, so if you have dependent steps, they will run first, then the delay, then the step.
+* Added in Retry Policy: If a test fails, you can retry n times by setting the `retry_count` property.  You can also delay retries by setting the `retry_delay_ms` parameter.
+* Both `delay_ms` and `retry_delay_ms` are in milliseconds and must be a positive integer value.
+
+* Added initial `junit` output so you can use lorikeet with jenkins or another CI server that supports junit xml reports.
+
 ## Changes in `0.7.0`
 
 * The main change here was to change the YAML parsing to remove panics, returning a `Result<Vec<Step>>` which is a breaking change
@@ -524,6 +532,63 @@ you_say_stop:
 and_i_say_go_go_go:
    value: go go go
 ```
+
+### Retry Counts and Delays
+
+Sometimes you want to delay a step a certain amount of time after another step has been run.  Sometimes if a step fails you may also want to retry it a few times before giving up.
+
+#### Adding a Delay
+
+You can add a delay by setting the `delay_ms` value:
+
+```yaml
+step1:
+  value: hello
+  delay_ms: 1000
+```
+
+Output:
+
+```yaml
+$ lorikeet test.yml
+- name: step1
+  pass: true
+  output: hello
+  duration: 1004.1231ms
+```
+
+#### Adding a Retry
+
+You can retry steps a few times with the `retry_count` and add a delay to the retry by using the `retry_delay_ms`.
+
+```yaml
+this_will_fail_but_take_3_seconds:
+  value: hello
+  matches: goodbye
+  retry_count: 3
+  retry_delay_ms: 1000
+```
+
+Output:
+
+```yaml
+$ lorikeet test.yml
+- name: this_will_fail_but_take_3_seconds
+  pass: false
+  output: hello
+  error: Not matched against `goodbye`
+  duration: 3015.933ms
+```
+
+### JUnit Reports
+
+You can generate a junit xml report with the `-j` command:
+
+```
+lorikeet -j report.xml test.yml
+```
+
+The output is primarily geared towards using with with [Jenkins BlueOcean](https://jenkins.io/doc/pipeline/tour/tests-and-artifacts/), and the report format may change a little bit.
 
 ## Examples
 

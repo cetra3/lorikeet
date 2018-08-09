@@ -52,11 +52,11 @@ fn main() {
 
     let mut steps = get_steps(&opt.test_plan, &opt.config).expect("Could not get steps");
 
-    debug!("Steps:{:?}", steps);
+    trace!("Steps:{:?}", steps);
 
-    let outcomes = run_steps(&mut steps);
+    run_steps(&mut steps);
 
-    debug!("Finished.  Outcomes are:{:?}", outcomes);
+    debug!("Finished.");
 
     let mut has_errors = false;
 

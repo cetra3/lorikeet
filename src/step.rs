@@ -3,6 +3,7 @@ use regex::Regex;
 
 use reqwest::Method;
 use std::time::{Duration, Instant};
+use std::thread;
 use serde::de::{Error, Deserialize, Deserializer};
 use serde::ser::Serializer;
 
@@ -30,6 +31,13 @@ pub struct Outcome {
     pub duration: Duration
 }
 
+#[derive(Default, Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RetryPolicy {
+    pub retry_count: usize,
+    pub retry_delay_ms: usize,
+    pub initial_delay_ms: usize,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Step {
     pub name: String,
@@ -39,6 +47,7 @@ pub struct Step {
     pub expect: ExpectType,
     pub do_output: bool,
     pub outcome: Option<Outcome>,
+    pub retry: RetryPolicy,
     pub require: Vec<String>,
     pub required_by: Vec<String>
 }
@@ -140,42 +149,94 @@ fn default_status() -> u16 {
 }
 
 impl RunType {
-    pub fn execute(&self, expect: ExpectType, filters: Vec<FilterType>) -> Outcome {
+    pub fn execute(&self, expect: ExpectType, filters: Vec<FilterType>, retry: RetryPolicy) -> Outcome {
 
         let start = Instant::now();
 
+        if retry.initial_delay_ms > 0 {
+            debug!("Initially Sleeping for {} ms", retry.initial_delay_ms);
+            let delay = Duration::from_millis(retry.initial_delay_ms as u64);
+            thread::sleep(delay);
+        }
 
-        return self.run()
-            .and_then(|mut val| {
+        let try_count = retry.retry_count + 1;
 
-                for filter in filters {
-                    val = filter.filter(&val)?;
+        let mut output = String::new();
+        let mut error = String::new();
+        let mut successful = false;
+
+        'retry: for count in 0..try_count {
+
+            //If this is a retry, sleep first before trying again
+            if count > 0 {
+                debug!("Retry {} of {}", count + 1, try_count - 1);
+
+                if retry.retry_delay_ms > 0 {
+                    debug!("Sleeping for {} ms", retry.retry_delay_ms);
+                    let delay = Duration::from_millis(retry.retry_delay_ms as u64);
+                    thread::sleep(delay);
+                }
+            }
+
+            output = String::new();
+            error = String::new();
+
+            //Run the runner first
+            match self.run() {
+                Ok(run_out) => {
+                    output = run_out;
+                    successful = true;
+                },
+                Err(run_err) => {
+                    error = run_err;
+                    successful = false;
+                }
+            }
+
+            //If it's successful, run the filters, changing the output each iteration
+            if successful {
+                'filter: for filter in filters.iter() {
+                        match filter.filter(&output) {
+                            Ok(filter_out) =>  {
+                                output = filter_out;
+                            },
+                            Err(filter_err) => {
+                                error = filter_err;
+                                successful = false;
+                                break 'filter;
+                            }
+                        };
                 };
-
-                Ok(val)
-            })
-            .map(|val| {
-
-            let expect = expect.check(&val);
-
-            let error = match expect {
-                Ok(_) => None,
-                Err(err) => Some(err)
-            };
-
-            return Outcome {
-                output: val.into(),
-                error: error,
-                duration: start.elapsed()
             }
 
-        }).unwrap_or_else(|val| {
-            return Outcome {
-                output: None,
-                error: val.into(),
-                duration: start.elapsed()
+            //If it's still successful, do the check
+            if successful {
+                if let Err(check_err) = expect.check(&output) {
+                    error = check_err;
+                    successful = false;
+                } else {
+                    break 'retry;
+                }
             }
-        });
+    
+        }
+
+        let output_opt = match output.as_ref() {
+            "" => None,
+            _ => Some(output)
+        };
+
+        let error_opt = match successful {
+            true => None,
+            false => Some(error)
+        };
+
+        //Default Return
+        return Outcome {
+            output: output_opt,
+            error: error_opt,
+            duration: start.elapsed()
+        }
   
     }
 
