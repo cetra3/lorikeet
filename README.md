@@ -54,6 +54,8 @@ They are also very noisy birds.
 
 ## Changes in `0.8.0`
 
+* The cli app will not panic if there is an issue reading, parsing or running steps, instead it will output a `lorikeet` step to display what the error is, and still submit it via webhooks, etc..
+
 * Added in initial delay for a step.  If you want to wait an arbitrary period of time before running a step, then you can set an initial delay with the `delay_ms` parameter.  This delay is only executed when the step would normally start, so if you have dependent steps, they will run first, then the delay, then the step.
 * Added in Retry Policy: If a test fails, you can retry n times by setting the `retry_count` property.  You can also delay retries by setting the `retry_delay_ms` parameter.
 * Both `delay_ms` and `retry_delay_ms` are in milliseconds and must be a positive integer value.
@@ -64,41 +66,6 @@ They are also very noisy birds.
 
 * The main change here was to change the YAML parsing to remove panics, returning a `Result<Vec<Step>>` which is a breaking change
 * A new function `get_steps_raw` which takes a `&str` yaml & anything that implements `Serialize` as a config context.  This mainly allows the library to be used without touching the file system for configs or steps. `get_steps` still can be provided with paths
-
-## Changes in `0.6.2`
-
-* When using `do_output: false`, Output is only hidden when displaying the final step outcome, which allows it to be used with the `step` step type.
-
-## Changes in `0.6.1`
-
-* Added the `step` step type (so meta!), which takes the output from another step and allows you to run more assertions over it:
-
-```yaml
-say_hello:
-  value: hello
-  
-test_step:
-  step: say_hello
-  matches: hello
-```
-
-* Fixed thread pool count, was locked at `4`
-
-## Changes in `0.6.0`
-
-*Breaking Change* Adjusted the step to always include an output, even on failure.  This is reflected in the webhook submission also.  This allows for polling things like memory which may fail the test, but you still want to record the output of the memory
-
-* Added `filters` to steps.  Allows you to filter or change the output of a step.  At the moment both [jmespath](http://jmespath.org/) and regex are supported.
-
-Here's an example:
-
-```yaml
-over_9000:
-  description: Checks to see if bitcoin is over 9000 USD
-  http: http://preev.com/pulse/units:btc+usd/sources:bitstamp
-  jmespath: btc.usd.bitstamp.last
-  greater_than: 9000
-```
 
 ## Installation
 
@@ -128,8 +95,9 @@ FLAGS:
     -V, --version    Prints version information
 
 OPTIONS:
-    -c, --config <config>      Configuration File
-    -w, --webhook <webhook>    Webhook submission URL
+    -c, --config <config>         Configuration File
+    -j, --junit <junit>           Output a JUnit XML Report to this file
+    -w, --webhook <webhook>...    Webhook submission URL (multiple values allowed)
 
 ARGS:
     <test_plan>    Test Plan [default: test.yml]

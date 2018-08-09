@@ -167,7 +167,9 @@ pub fn get_steps<P: AsRef<Path>, Q: AsRef<Path>>(file_path: P, config_path: &Opt
 
     let mut file_contents = String::new();
 
-    let mut f = File::open(file_path)?;
+    let path_ref = file_path.as_ref();
+
+    let mut f = File::open(path_ref).map_err(|err| err_msg(format!("Could not open file {:?}: {}", path_ref, err)))?;
 
     f.read_to_string(&mut file_contents)?;
 
@@ -175,13 +177,12 @@ pub fn get_steps<P: AsRef<Path>, Q: AsRef<Path>>(file_path: P, config_path: &Opt
         &Some(ref path) => {
             let c = File::open(path)?;
 
-            let value: Value = serde_yaml::from_reader(c).map_err(|err| err_msg(format!("Could not parse {:?} as YAML: {}", path.as_ref(), err)))?;
+            let value: Value = serde_yaml::from_reader(c).map_err(|err| err_msg(format!("Could not parse config {:?} as YAML: {}", path.as_ref(), err)))?;
 
-            get_steps_raw(&file_contents, &value)
-
+            get_steps_raw(&file_contents, &value).map_err(|err| err_msg(format!("Could not parse file {:?}: {}", path_ref, err)))
         },
         &None => {
-            get_steps_raw(&file_contents, &Context::new())
+            get_steps_raw(&file_contents, &Context::new()).map_err(|err| err_msg(format!("Could not parse file {:?}: {}", path_ref, err)))
         }
     }
 

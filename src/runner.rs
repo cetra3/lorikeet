@@ -11,6 +11,7 @@ use graph::{create_graph, Require};
 use petgraph::prelude::GraphMap;
 use petgraph::{Directed, Direction};
 
+use failure::{err_msg, Error};
 
 use std::collections::HashMap;
 
@@ -43,7 +44,9 @@ impl<'a> StepRunner<'a> {
 
         debug!("Poll received for `{}`", self.index);
 
-        match self.steps.lock().unwrap()[self.index] {
+        let mut cur_steps = self.steps.lock().expect("Could not get mutex for steps");
+
+        match cur_steps[self.index] {
                 //If it's already completed, return
                 Status::Completed(_) => {
                     return;
@@ -54,7 +57,7 @@ impl<'a> StepRunner<'a> {
         let mut has_error = false;
 
         for neighbor in self.graph.neighbors_directed(self.index, Direction::Incoming) {
-            match self.steps.lock().unwrap()[neighbor] {
+            match cur_steps[neighbor] {
                 Status::Completed(ref status_outcome) => {
 
                     if let Some(_) = status_outcome.error {
@@ -72,13 +75,13 @@ impl<'a> StepRunner<'a> {
         }
 
         if has_error {
-            self.steps.lock().unwrap()[self.index] = Status::Completed(Outcome { output: Some("".into()), error: Some("Dependency Not Met".into()), duration: Duration::from_secs(0) });
+            cur_steps[self.index] = Status::Completed(Outcome { output: Some("".into()), error: Some("Dependency Not Met".into()), duration: Duration::from_secs(0) });
             return;
         }
 
-        if self.steps.lock().unwrap()[self.index] == Status::Outstanding {
+        if cur_steps[self.index] == Status::Outstanding {
 
-            self.steps.lock().unwrap()[self.index] = Status::InProgress;
+            cur_steps[self.index] = Status::InProgress;
 
             let mut run = self.run.clone();
 
@@ -87,7 +90,7 @@ impl<'a> StepRunner<'a> {
                 let step_ref: &str = step;
                 let run_index = self.name_lookup.get(&*step_ref).unwrap();
 
-                if let Status::Completed(ref outcome) = self.steps.lock().unwrap()[*run_index] {
+                if let Status::Completed(ref outcome) = cur_steps[*run_index] {
                     if let Some(ref output) = outcome.output {
                         run = RunType::Step(output.clone());
                     }
@@ -115,10 +118,11 @@ impl<'a> StepRunner<'a> {
 
 }
 
-pub fn run_steps(steps: &mut Vec<Step>) {
+pub fn run_steps(steps: &mut Vec<Step>) -> Result<(), Error> {
+
+    let graph = create_graph(&steps)?;
 
     let steps_status:  Arc<Mutex<Vec<Status>>> = Arc::new(Mutex::new(vec![Status::Outstanding; steps.len()]));
-
 
     //We want the runners to drop after this so we can return the steps status
     {
@@ -130,7 +134,7 @@ pub fn run_steps(steps: &mut Vec<Step>) {
 
         let name_lookup = Arc::new(lookup);
 
-        let shared_graph = Arc::new(create_graph(&steps));
+        let shared_graph = Arc::new(graph);
 
         let mut runners = Vec::new();
 
@@ -162,7 +166,7 @@ pub fn run_steps(steps: &mut Vec<Step>) {
 
         for _ in 0..steps.len() {
 
-            let finished = rx.recv().expect("Could not receive notification");
+            let finished = rx.recv()?;
 
             for neighbor in shared_graph.neighbors_directed(finished, Direction::Outgoing) {
                 runners[neighbor].poll();
@@ -173,9 +177,9 @@ pub fn run_steps(steps: &mut Vec<Step>) {
 
     }
 
-    let steps_ptr = Arc::try_unwrap(steps_status).expect("Could not retrieve the status list");
+    let steps_ptr = Arc::try_unwrap(steps_status).map_err(|_| err_msg("Could not unwrap arc pointer"))?;
 
-    for (i, status) in steps_ptr.into_inner().expect("Could not free mutex").into_iter().enumerate() {
+    for (i, status) in steps_ptr.into_inner()?.into_iter().enumerate() {
 
         if let Status::Completed(outcome) = status {
             steps[i].outcome = Some(outcome);
@@ -183,4 +187,5 @@ pub fn run_steps(steps: &mut Vec<Step>) {
 
     }
 
+    Ok(())
 }
