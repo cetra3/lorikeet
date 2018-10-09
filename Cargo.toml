@@ -8,7 +8,7 @@ repository = "https://github.com/cetra3/lorikeet"
 readme = "README.md"
 
 [dependencies]
-petgraph = "0.4.11"
+petgraph = "0.4.13"
 serde = "1.0"
 serde_derive = "1.0"
 serde_yaml = "0.7"

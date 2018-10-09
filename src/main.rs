@@ -1,10 +1,6 @@
 extern crate lorikeet;
-
-#[macro_use]
 extern crate structopt;
-
 extern crate serde_yaml;
-
 extern crate isatty;
 
 #[macro_use] extern crate log;
@@ -56,9 +52,6 @@ fn main() {
     let opt = Arguments::from_args();
 
     env_logger::init();
-
-
-    debug!("Finished.");
 
     let mut has_errors = false;
 

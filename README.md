@@ -60,7 +60,7 @@ They are also very noisy birds.
 * Added in Retry Policy: If a test fails, you can retry n times by setting the `retry_count` property.  You can also delay retries by setting the `retry_delay_ms` parameter.
 * Both `delay_ms` and `retry_delay_ms` are in milliseconds and must be a positive integer value.
 
-* Added initial `junit` output so you can use lorikeet with jenkins or another CI server that supports junit xml reports.
+* Added initial `junit` output so you can use lorikeet with jenkins or another CI server that supports junit xml reports.  Use `-j report.xml` to output junit reports.
 
 ## Changes in `0.7.0`
 

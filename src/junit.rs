@@ -78,7 +78,10 @@ pub fn create_junit(results: &Vec<StepResult>, file_path: &Path, hostname: Optio
 
         if !result.pass {
 
-            let error_text = result.error.clone().unwrap_or_else(||String::from(""));
+            let error_text = match result.error {
+                Some(ref text) => text,
+                None => ""
+            };
 
             if error_text == "Dependency Not Met" {
                 let mut skipped = BytesStart::borrowed(b"skipped", b"skipped".len());
@@ -89,10 +92,10 @@ pub fn create_junit(results: &Vec<StepResult>, file_path: &Path, hostname: Optio
                 writer.write_event(Event::End(BytesEnd::borrowed(b"skipped")))?;
             } else {
                 let mut failure = BytesStart::borrowed(b"failure", b"failure".len());
-                failure.push_attribute(("message", &filter_invalid_chars(&error_text) as &str));
+                failure.push_attribute(("message", "Step failed to finish"));
 
                 writer.write_event(Event::Start(failure))?;
-
+                writer.write_event(Event::Text(BytesText::from_plain_str(&filter_invalid_chars(&error_text))))?;
                 writer.write_event(Event::End(BytesEnd::borrowed(b"failure")))?;
 
             }

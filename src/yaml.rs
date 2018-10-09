@@ -131,6 +131,8 @@ pub fn get_steps_raw<T: Serialize>(yaml_contents: &str, context: &T) -> Result<V
 
     let test_plan_yaml = tera.render("test_plan", context).map_err(nice_error)?;
 
+    debug!("YAML output:\n{}", test_plan_yaml);
+
     let input_steps: LinkedHashMap<String, StepYaml> = serde_yaml::from_str(&test_plan_yaml)?;
     let mut steps: Vec<Step> =  Vec::new();
     
