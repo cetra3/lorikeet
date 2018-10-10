@@ -1,4 +1,5 @@
 extern crate lorikeet;
+#[macro_use]
 extern crate structopt;
 extern crate serde_yaml;
 extern crate isatty;
