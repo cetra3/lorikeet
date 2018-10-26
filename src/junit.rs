@@ -34,7 +34,7 @@ pub fn create_junit(results: &Vec<StepResult>, file_path: &Path, hostname: Optio
     }).count();
     let failure_num = results.iter().filter(|step| step.pass == false).count() - skip_num;
 
-    let time = results.iter().fold(0f32, |sum, step| sum + step.duration);
+    let time = results.iter().fold(0f32, |sum, step| sum + (step.duration / 1000f32));
 
     let hostname = match hostname {
         Some(hostname) => String::from(hostname),
@@ -65,8 +65,7 @@ pub fn create_junit(results: &Vec<StepResult>, file_path: &Path, hostname: Optio
             testcase.push_attribute(("classname", ""));
         }
 
-        testcase.push_attribute(("time", &*result.duration.to_string()));
-
+        testcase.push_attribute(("time", &*(result.duration / 1000f32).to_string()));
 
         writer.write_event(Event::Start(testcase))?;
 
