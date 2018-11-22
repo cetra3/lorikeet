@@ -1,18 +1,20 @@
 use hostname;
 
-use std::path::Path;
-use std::fs::File;
-use quick_xml::Writer;
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
+use quick_xml::Writer;
+use std::fs::File;
+use std::path::Path;
 
 use submitter::StepResult;
 
 use failure::Error;
 use std::fs::create_dir_all;
 
-pub fn create_junit(results: &Vec<StepResult>, file_path: &Path, hostname: Option<&str>) -> Result<(), Error> {
-
-
+pub fn create_junit(
+    results: &Vec<StepResult>,
+    file_path: &Path,
+    hostname: Option<&str>,
+) -> Result<(), Error> {
     if let Some(parent) = file_path.parent() {
         create_dir_all(parent)?;
     }
@@ -26,19 +28,24 @@ pub fn create_junit(results: &Vec<StepResult>, file_path: &Path, hostname: Optio
     // Add in the testsuite elem
 
     let test_num = results.len();
-    let skip_num = results.iter().filter(|step| {
-        if let Some(ref output) = step.error {
-            return output == "Dependency Not Met";
-        }
-        return false;
-    }).count();
+    let skip_num = results
+        .iter()
+        .filter(|step| {
+            if let Some(ref output) = step.error {
+                return output == "Dependency Not Met";
+            }
+            return false;
+        })
+        .count();
     let failure_num = results.iter().filter(|step| step.pass == false).count() - skip_num;
 
-    let time = results.iter().fold(0f32, |sum, step| sum + (step.duration / 1000f32));
+    let time = results
+        .iter()
+        .fold(0f32, |sum, step| sum + (step.duration / 1000f32));
 
     let hostname = match hostname {
         Some(hostname) => String::from(hostname),
-        None => hostname::get_hostname().unwrap_or_else(||String::from(""))
+        None => hostname::get_hostname().unwrap_or_else(|| String::from("")),
     };
 
     let mut testsuite = BytesStart::borrowed(b"testsuite", b"testsuite".len());
@@ -46,15 +53,14 @@ pub fn create_junit(results: &Vec<StepResult>, file_path: &Path, hostname: Optio
     testsuite.push_attribute(("name", "lorikeet"));
     testsuite.push_attribute(("hostname", &*hostname));
 
-    testsuite.push_attribute(("tests", &*test_num.to_string() ));
-    testsuite.push_attribute(("failures", &*failure_num.to_string() ));
-    testsuite.push_attribute(("skipped", &*skip_num.to_string() ));
-    testsuite.push_attribute(("time", &*time.to_string() ));
+    testsuite.push_attribute(("tests", &*test_num.to_string()));
+    testsuite.push_attribute(("failures", &*failure_num.to_string()));
+    testsuite.push_attribute(("skipped", &*skip_num.to_string()));
+    testsuite.push_attribute(("time", &*time.to_string()));
 
     writer.write_event(Event::Start(testsuite))?;
 
     for result in results.iter() {
-
         let mut testcase = BytesStart::borrowed(b"testcase", b"testcase".len());
 
         testcase.push_attribute(("name", &*result.name));
@@ -69,17 +75,21 @@ pub fn create_junit(results: &Vec<StepResult>, file_path: &Path, hostname: Optio
 
         writer.write_event(Event::Start(testcase))?;
 
-        writer.write_event(Event::Start(BytesStart::borrowed(b"system-out", b"system-out".len())))?;
+        writer.write_event(Event::Start(BytesStart::borrowed(
+            b"system-out",
+            b"system-out".len(),
+        )))?;
 
-        writer.write_event(Event::Text(BytesText::from_plain_str(&filter_invalid_chars(&result.output))))?;
+        writer.write_event(Event::Text(BytesText::from_plain_str(
+            &filter_invalid_chars(&result.output),
+        )))?;
 
         writer.write_event(Event::End(BytesEnd::borrowed(b"system-out")))?;
 
         if !result.pass {
-
             let error_text = match result.error {
                 Some(ref text) => text,
-                None => ""
+                None => "",
             };
 
             if error_text == "Dependency Not Met" {
@@ -94,18 +104,15 @@ pub fn create_junit(results: &Vec<StepResult>, file_path: &Path, hostname: Optio
                 failure.push_attribute(("message", "Step failed to finish"));
 
                 writer.write_event(Event::Start(failure))?;
-                writer.write_event(Event::Text(BytesText::from_plain_str(&filter_invalid_chars(&error_text))))?;
+                writer.write_event(Event::Text(BytesText::from_plain_str(
+                    &filter_invalid_chars(&error_text),
+                )))?;
                 writer.write_event(Event::End(BytesEnd::borrowed(b"failure")))?;
-
             }
-
         }
-
-
 
         writer.write_event(Event::End(BytesEnd::borrowed(b"testcase")))?;
     }
-
 
     writer.write_event(Event::End(BytesEnd::borrowed(b"testsuite")))?;
 
@@ -113,22 +120,18 @@ pub fn create_junit(results: &Vec<StepResult>, file_path: &Path, hostname: Optio
 }
 
 fn filter_invalid_chars(input: &str) -> String {
-
     let mut output = String::new();
 
     for ch in input.chars() {
-
-       if 
-         ( ch >= '\u{0020}' && ch <= '\u{D7FF}' ) || 
-            ( ch >= '\u{E000}' && ch <= '\u{FFFD}' ) ||
-            ch == '\u{0009}' ||
-            ch == '\u{0A}' ||
-            ch == '\u{0D}' {
-                output.push(ch);
-            }
-
+        if (ch >= '\u{0020}' && ch <= '\u{D7FF}')
+            || (ch >= '\u{E000}' && ch <= '\u{FFFD}')
+            || ch == '\u{0009}'
+            || ch == '\u{0A}'
+            || ch == '\u{0D}'
+        {
+            output.push(ch);
+        }
     }
-
 
     output
 }
