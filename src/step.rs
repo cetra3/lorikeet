@@ -2,9 +2,12 @@ use regex::Regex;
 use std::process::Command;
 
 use reqwest::{
-    header::{COOKIE, SET_COOKIE},
+    header::{HeaderValue, COOKIE, SET_COOKIE},
     Method,
 };
+
+use cookie::{Cookie, CookieJar};
+
 use serde::de::{Deserialize, Deserializer, Error};
 use serde::ser::Serializer;
 use std::thread;
@@ -105,7 +108,7 @@ pub enum HttpVariant {
 }
 
 lazy_static! {
-    static ref COOKIES: CHashMap<String, HashMap<String, String>> = CHashMap::new();
+    static ref COOKIES: CHashMap<String, CookieJar> = CHashMap::new();
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -330,11 +333,9 @@ impl RunType {
                     request
                 };
 
-                let request = if let Some(cookies) = COOKIES.get(&hostname) {
-                    let cookie_strings: Vec<String> = cookies
-                        .iter()
-                        .map(|(k, v)| format!("{}={}", &k, &v))
-                        .collect();
+                let request = if let Some(cookie_jar) = COOKIES.get(&hostname) {
+                    let cookie_strings: Vec<String> =
+                        cookie_jar.iter().map(Cookie::to_string).collect();
                     request.header(COOKIE, cookie_strings.join("; "))
                 } else {
                     request
@@ -361,20 +362,16 @@ impl RunType {
                     let new_cookies = response.headers().get_all(SET_COOKIE);
 
                     COOKIES.alter(hostname, |value| {
-                        let mut cookie_store = value.unwrap_or(HashMap::new());
-                        for cookie in new_cookies.iter() {
-                            for (key, value) in cookie
-                                .to_str()
-                                .unwrap()
-                                .split(";")
-                                .take(1)
-                                .map(|parts| parts.splitn(2, "=").collect())
-                                .map(|kv: Vec<&str>| (kv[0], kv[1]))
-                            {
-                                cookie_store.insert(key.to_string(), value.to_string());
-                            }
+                        let mut cookie_jar = value.unwrap_or(CookieJar::new());
+                        for cookie in new_cookies
+                            .iter()
+                            .flat_map(HeaderValue::to_str)
+                            .map(String::from)
+                            .flat_map(Cookie::parse)
+                        {
+                            cookie_jar.add(cookie);
                         }
-                        Some(cookie_store)
+                        Some(cookie_jar)
                     });
                 }
 
