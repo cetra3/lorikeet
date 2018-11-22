@@ -21,7 +21,7 @@ term-painter = "0.2.4"
 isatty = "0.1.6"
 regex = "0.2.6"
 env_logger = "0.5.3"
-reqwest = "0.8.4"
+reqwest = "0.9.5"
 hyper = "0.11.18"
 chrono = { version = "0.4", features = ["serde"] }
 lazy_static = "1.0.0"
