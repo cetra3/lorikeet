@@ -1,4 +1,5 @@
 extern crate lorikeet;
+#[allow(unused)]
 #[macro_use]
 extern crate structopt;
 extern crate isatty;

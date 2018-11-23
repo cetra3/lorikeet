@@ -1,4 +1,5 @@
 use regex::Regex;
+use std::path::PathBuf;
 use std::process::Command;
 
 use reqwest::{
@@ -24,6 +25,7 @@ use sys_info::{disk_info, loadavg, mem_info};
 
 use chashmap::CHashMap;
 
+use reqwest::multipart::Form;
 use reqwest::{self, RedirectPolicy};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -125,11 +127,29 @@ pub struct HttpOptions {
     #[serde(default = "default_status")]
     status: u16,
     #[serde(default)]
+    headers: Option<HashMap<String, String>>,
+    #[serde(default)]
     user: Option<String>,
+    #[serde(default)]
+    body: Option<String>,
     #[serde(default)]
     pass: Option<String>,
     #[serde(default)]
     form: Option<HashMap<String, String>>,
+    #[serde(default)]
+    multipart: Option<HashMap<String, PathOrValue>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PathOrValue {
+    Value(String),
+    Path(PathStruct),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PathStruct {
+    file: PathBuf,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -292,10 +312,13 @@ impl RunType {
                         url: val.clone(),
                         method: Method::GET,
                         status: default_status(),
+                        headers: None,
                         save_cookies: default_cookies(),
                         user: None,
                         pass: None,
+                        body: None,
                         form: None,
+                        multipart: None,
                     },
                     HttpVariant::Options(ref opts) => opts.clone(),
                 };
@@ -315,31 +338,52 @@ impl RunType {
                     .map(|str| String::from(str))
                     .ok_or_else(|| format!("No host could be found for url: {}", url))?;
 
-                if httpops.form != None && httpops.method == Method::GET {
+                if (httpops.form.is_some() || httpops.multipart.is_some() || httpops.body.is_some())
+                    && httpops.method == Method::GET
+                {
                     httpops.method = Method::POST;
                 }
 
-                let request = client.request(httpops.method, url);
+                let mut request = client.request(httpops.method, url);
 
-                let request = if let Some(user) = httpops.user {
-                    request.basic_auth(user, httpops.pass)
-                } else {
-                    request
-                };
+                if let Some(user) = httpops.user {
+                    request = request.basic_auth(user, httpops.pass)
+                }
 
-                let request = if let Some(form) = httpops.form {
-                    request.form(&form)
-                } else {
-                    request
-                };
+                if let Some(form) = httpops.form {
+                    request = request.form(&form)
+                }
 
-                let request = if let Some(cookie_jar) = COOKIES.get(&hostname) {
+                if let Some(multipart) = httpops.multipart {
+                    let mut form = Form::new();
+
+                    for (key, val) in multipart.into_iter() {
+                        form = match val {
+                            PathOrValue::Value(string) => form.text(key, string),
+                            PathOrValue::Path(path_struct) => form
+                                .file(key, path_struct.file)
+                                .map_err(|err| format!("{}", err))?,
+                        }
+                    }
+
+                    request = request.multipart(form)
+                }
+
+                if let Some(body) = httpops.body {
+                    request = request.body(body);
+                }
+
+                if let Some(cookie_jar) = COOKIES.get(&hostname) {
                     let cookie_strings: Vec<String> =
                         cookie_jar.iter().map(Cookie::to_string).collect();
-                    request.header(COOKIE, cookie_strings.join("; "))
-                } else {
-                    request
-                };
+                    request = request.header(COOKIE, cookie_strings.join("; "))
+                }
+
+                if let Some(headers) = httpops.headers {
+                    for (key, val) in headers.into_iter() {
+                        request = request.header(&*key, &*val);
+                    }
+                }
 
                 let mut response = client
                     .execute(request.build().map_err(|err| format!("{:?}", err))?)

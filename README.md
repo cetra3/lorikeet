@@ -52,6 +52,44 @@ The name comes from the [Rainbow Lorikeet](https://en.wikipedia.org/wiki/Rainbow
 
 They are also very noisy birds.
 
+## Changes in `0.9.0`
+
+* Upgrade to Reqwest `0.9.x` branch, thanks [norcali](https://github.com/norcalli)!
+
+* Added multipart support, body, and headers support to the HTTP request type:
+
+To add custom headers, supply a map of `header_name: header_value`:
+
+```yaml
+Example Header:
+  http:
+    url: https://example.com
+    headers:
+      my-custom-header: my-custom-value
+```
+
+Multipart works in the same way as the existing `form` option, but allows you to also specify files to upload:
+
+```yaml
+Example Multipart:
+  http:
+    url: https://example.com
+    multipart:
+      multipart_field: multipart_value
+      file_upload:
+        file: /path/to/file
+```
+
+You can also just set a generic body via a string:
+
+```yaml
+Example Body:
+  http:
+    url: https://example.com
+    body: |
+      This is a generic POST body
+```
+
 ## Changes in `0.8.0`
 
 * The cli app will not panic if there is an issue reading, parsing or running steps, instead it will output a `lorikeet` step to display what the error is, and still submit it via webhooks, etc..
@@ -221,12 +259,15 @@ Or provide the following options:
 
 * `url`: The URL of the request to submit
 * `method`: The HTTP method to use, such as POST, GET, DELETE.  Defaults to `GET`
+* `headers`: Key/Value pairs for any custom headers on your request
 * `get_output`:  Return the output of the request.  Defaults to `true`
 * `save_cookies`:  Save any set cookies on this domain.  Defaults to `false`
 * `status`: Check the return status is equal to this value.  Defaults to `200`
 * `user`: Username for Basic Auth
 * `pass`: Password for Basic Auth
-* `form`:  Key/Value pairs for a form POST submission.  If method isn't set, then this will set the method to `POST`
+* `form`:  Key/Value pairs for a form POST submission.  If method is set to `GET`, then this will set the method to `POST`
+* `multipart`: Multipart request.  Key/Value pairs Like the `form` option but allows file upload as well.
+* `body`: Like the `form`/`multipart` options but a raw string instead of form data for JSON uploads
 
 As a more elaborate example:
 
@@ -239,6 +280,28 @@ login_to_reddit:
       user: {{user}}
       passwd: {{pass}}
       api_type: json
+```
+
+For Multipart, you can specify files like so:
+
+```yaml
+Example Multipart:
+  http:
+    url: https://www.example.com
+    multipart:
+      multipart_field: multipart_value
+      file_upload:
+        file: /path/to/file
+```
+
+For a JSON upload you can use the `body` field:
+
+```yaml
+Example Raw JSON:
+  http:
+    url: https://www.example.com
+    body: |
+      { "json_key": "json_value" }
 ```
 
 ### System Step Type
