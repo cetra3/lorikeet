@@ -526,7 +526,7 @@ impl FilterType {
 
 impl ExpectType {
     fn check(&self, val: &str) -> Result<(), String> {
-        let number_filter = Regex::new("[^0-9.,]").unwrap();
+        let number_filter = Regex::new("[^-0-9.,]").unwrap();
 
         match *self {
             ExpectType::Anything => Ok(()),
@@ -565,7 +565,7 @@ impl ExpectType {
                         if compare < *num {
                             Ok(())
                         } else {
-                            Err(format!("The value `{}` not less than `{}`", compare, num))
+                            Err(format!("The value `{}` is not less than `{}`", compare, num))
                         }
                     }
                     Err(_) => Err(format!("Could not parse `{}` as a number", num)),
@@ -578,5 +578,25 @@ impl ExpectType {
 impl Default for ExpectType {
     fn default() -> Self {
         ExpectType::Anything
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expect_negative_numbers() {
+        let expect = ExpectType::LessThan(0.0);
+        assert_eq!(expect.check("-1"), Ok(()));
+        assert_eq!(expect.check("-1.0"), Ok(()));
+        assert_eq!(expect.check("-.01"), Ok(()));
+        assert_eq!(expect.check("-0.01"), Ok(()));
+
+        let expect = ExpectType::GreaterThan(-2.0);
+        assert_eq!(expect.check("-1"), Ok(()));
+        assert_eq!(expect.check("-1.0"), Ok(()));
+        assert_eq!(expect.check("-.01"), Ok(()));
+        assert_eq!(expect.check("-0.01"), Ok(()));
     }
 }
