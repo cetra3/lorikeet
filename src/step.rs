@@ -169,7 +169,7 @@ fn string_to_method<'de, D>(d: D) -> Result<Method, D::Error>
 where
     D: Deserializer<'de>,
 {
-    Deserialize::deserialize(d).and_then(|str| Method::from_str(str).map_err(Error::custom))
+    Deserialize::deserialize(d).and_then(|val: String| Method::from_str(&val).map_err(Error::custom))
 }
 
 fn default_cookies() -> bool {
