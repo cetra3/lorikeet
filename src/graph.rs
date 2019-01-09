@@ -39,7 +39,7 @@ pub fn create_graph(
             return Err(err_msg(format!(
                 "Could not build step graph: `{}` has a circular dependency",
                 steps[err.node_id()].name
-            )))
+            )));
         }
     }
 }

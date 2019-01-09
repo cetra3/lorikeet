@@ -169,7 +169,8 @@ fn string_to_method<'de, D>(d: D) -> Result<Method, D::Error>
 where
     D: Deserializer<'de>,
 {
-    Deserialize::deserialize(d).and_then(|val: String| Method::from_str(&val).map_err(Error::custom))
+    Deserialize::deserialize(d)
+        .and_then(|val: String| Method::from_str(&val).map_err(Error::custom))
 }
 
 fn default_cookies() -> bool {
@@ -624,7 +625,10 @@ impl ExpectType {
                         if compare < *num {
                             Ok(())
                         } else {
-                            Err(format!("The value `{}` is not less than `{}`", compare, num))
+                            Err(format!(
+                                "The value `{}` is not less than `{}`",
+                                compare, num
+                            ))
                         }
                     }
                     Err(_) => Err(format!("Could not parse `{}` as a number", num)),
