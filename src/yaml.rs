@@ -26,6 +26,7 @@ struct StepYaml {
     http: Option<HttpVariant>,
     system: Option<SystemVariant>,
     matches: Option<String>,
+    matches_not: Option<String>,
     #[serde(default)]
     filters: Vec<FilterType>,
     jmespath: Option<String>,
@@ -75,6 +76,10 @@ fn get_runtype(step: &StepYaml) -> RunType {
 fn get_expecttype(step: &StepYaml) -> ExpectType {
     if let Some(ref string) = step.matches {
         return ExpectType::Matches(string.clone());
+    }
+
+    if let Some(ref string) = step.matches_not {
+        return ExpectType::MatchesNot(string.clone());
     }
 
     if let Some(ref string) = step.greater_than {

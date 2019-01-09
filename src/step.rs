@@ -489,6 +489,7 @@ pub struct RegexOptions {
 pub enum ExpectType {
     Anything,
     Matches(String),
+    MatchesNot(String),
     GreaterThan(f64),
     LessThan(f64),
 }
@@ -574,6 +575,20 @@ impl ExpectType {
 
         match *self {
             ExpectType::Anything => Ok(()),
+            ExpectType::MatchesNot(ref match_string) => {
+                let regex = Regex::new(match_string).map_err(|err| {
+                    format!(
+                        "Could not create regex from `{}`.  Error is:{:?}",
+                        match_string, err
+                    )
+                })?;
+
+                if !regex.is_match(val) {
+                    Ok(())
+                } else {
+                    Err(format!("Matched against `{}`", match_string))
+                }
+            }
             ExpectType::Matches(ref match_string) => {
                 let regex = Regex::new(match_string).map_err(|err| {
                     format!(
