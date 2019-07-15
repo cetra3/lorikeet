@@ -23,6 +23,10 @@ use std::collections::HashMap;
 
 use sys_info::{disk_info, loadavg, mem_info};
 
+use serde_derive::{Serialize, Deserialize};
+use lazy_static::lazy_static;
+use log::debug;
+
 use chashmap::CHashMap;
 
 use reqwest::multipart::Form;
@@ -324,9 +328,7 @@ impl RunType {
                     HttpVariant::Options(ref opts) => opts.clone(),
                 };
 
-                let mut clientbuilder = reqwest::ClientBuilder::new();
-
-                let client = clientbuilder
+                let client = reqwest::ClientBuilder::new()
                     .redirect(RedirectPolicy::none())
                     .build()
                     .map_err(|err| format!("{}", err))?;

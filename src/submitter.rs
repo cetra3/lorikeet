@@ -1,9 +1,12 @@
-use term_painter::Color::*;
-use term_painter::ToStyle;
+
+
+use colored::*;
+use serde_derive::{Serialize, Deserialize};
+use log::debug;
 
 use std::convert::From;
 
-use step::Step;
+use crate::step::Step;
 
 use reqwest;
 
@@ -71,10 +74,6 @@ pub fn submit_webhook(
 
 impl StepResult {
     pub fn terminal_print(&self, colours: &bool) {
-        let style = match self.pass {
-            true => Green.bold(),
-            false => Red.bold(),
-        };
 
         let mut message = format!("- name: {}\n", self.name);
 
@@ -102,7 +101,14 @@ impl StepResult {
         message.push_str(&format!("  duration: {}ms\n", self.duration));
 
         if *colours {
-            println!("{}", style.paint(message));
+            match self.pass {
+                true => {
+                    println!("{}", message.green().bold());
+                },
+                false => {
+                    println!("{}", message.red().bold());
+                }
+            }
         } else {
             println!("{}", message);
         }

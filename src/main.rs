@@ -1,17 +1,3 @@
-extern crate lorikeet;
-#[allow(unused)]
-#[macro_use]
-extern crate structopt;
-extern crate isatty;
-extern crate serde_yaml;
-
-#[macro_use]
-extern crate log;
-extern crate env_logger;
-
-extern crate openssl_probe;
-
-extern crate failure;
 
 use structopt::StructOpt;
 
@@ -19,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use failure::Error;
 
-use isatty::stdout_isatty;
+use log::{debug, trace};
 
 use lorikeet::runner::run_steps;
 use lorikeet::step::{ExpectType, Outcome, RetryPolicy, RunType, Step};
@@ -36,6 +22,9 @@ struct Arguments {
 
     #[structopt(short = "c", long = "config", help = "Configuration File")]
     config: Option<String>,
+
+    #[structopt(short = "t", long = "terminal", help = "Force terminal colours")]
+    term: bool,
 
     #[structopt(help = "Test Plan", default_value = "test.yml")]
     test_plan: String,
@@ -65,7 +54,7 @@ fn main() {
 
     let mut has_errors = false;
 
-    let colours = stdout_isatty();
+    let colours = atty::is(atty::Stream::Stdout) || opt.term;
 
     let mut results = Vec::new();
 

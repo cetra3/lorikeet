@@ -5,7 +5,7 @@ use quick_xml::Writer;
 use std::fs::File;
 use std::path::Path;
 
-use submitter::StepResult;
+use crate::submitter::StepResult;
 
 use failure::Error;
 use std::fs::create_dir_all;

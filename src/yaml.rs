@@ -1,8 +1,10 @@
+use crate::step::FilterType;
+use crate::step::RegexVariant;
 use std::fs::File;
-use step::FilterType;
-use step::RegexVariant;
 
 use serde::Serialize;
+use serde_derive::Deserialize;
+use log::debug;
 
 use serde_yaml::{self, Value};
 use tera::{Context, Error as TeraError, Tera};
@@ -12,10 +14,10 @@ use std::path::Path;
 use failure::{err_msg, Error};
 use std::io::Read;
 
-use linked_hash_map::LinkedHashMap;
-use step::{
+use crate::step::{
     BashVariant, ExpectType, HttpVariant, Requirement, RetryPolicy, RunType, Step, SystemVariant,
 };
+use linked_hash_map::LinkedHashMap;
 
 #[derive(Debug, PartialEq, Deserialize)]
 struct StepYaml {

@@ -1,8 +1,9 @@
+use crate::step::RunType;
+use crate::step::Step;
 use failure::{err_msg, Error};
 use petgraph;
 use petgraph::prelude::GraphMap;
-use step::RunType;
-use step::Step;
+use serde_derive::{Serialize, Deserialize};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Require;

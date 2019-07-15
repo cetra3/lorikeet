@@ -52,6 +52,12 @@ The name comes from the [Rainbow Lorikeet](https://en.wikipedia.org/wiki/Rainbow
 
 They are also very noisy birds.
 
+## Changes in `0.10.0`
+
+* Upgrade to 2018 crate format
+* Fixed terminal painting on Ubuntu 19.10
+* A few minor updates to the library version
+
 ## Changes in `0.9.0`
 
 * Upgrade to Reqwest `0.9.x` branch, thanks [norcali](https://github.com/norcalli)!

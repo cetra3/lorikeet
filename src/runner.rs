@@ -1,21 +1,25 @@
+use crate::step::FilterType;
 use std::sync::mpsc::Sender;
-use step::FilterType;
 
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use step::{ExpectType, Outcome, RetryPolicy, RunType, Step};
+use crate::step::{ExpectType, Outcome, RetryPolicy, RunType, Step};
 
-use graph::{create_graph, Require};
+use crate::graph::{create_graph, Require};
 use petgraph::prelude::GraphMap;
 use petgraph::{Directed, Direction};
 
+use serde_derive::Deserialize;
+
+use log::debug;
+
 use failure::{err_msg, Error};
 
-use std::collections::HashMap;
-
 use threadpool::ThreadPool;
+
+use chashmap::CHashMap;
 
 pub struct StepRunner<'a> {
     pub run: RunType,
@@ -25,7 +29,7 @@ pub struct StepRunner<'a> {
     pub graph: Arc<GraphMap<usize, Require, Directed>>,
     pub steps: Arc<Mutex<Vec<Status>>>,
     pub pool: ThreadPool,
-    pub name_lookup: Arc<HashMap<&'a str, usize>>,
+    pub name_lookup: &'a CHashMap<&'a str, usize>,
     pub index: usize,
     pub notify: Sender<usize>,
 }
@@ -129,13 +133,11 @@ pub fn run_steps(steps: &mut Vec<Step>) -> Result<(), Error> {
 
     //We want the runners to drop after this so we can return the steps status
     {
-        let mut lookup: HashMap<&str, usize> = HashMap::new();
+        let lookup: CHashMap<&str, usize> = CHashMap::new();
 
         for i in 0..steps.len() {
             lookup.insert(&steps[i].name, i);
         }
-
-        let name_lookup = Arc::new(lookup);
 
         let shared_graph = Arc::new(graph);
 
@@ -153,7 +155,7 @@ pub fn run_steps(steps: &mut Vec<Step>) -> Result<(), Error> {
                 graph: shared_graph.clone(),
                 steps: steps_status.clone(),
                 index: i,
-                name_lookup: name_lookup.clone(),
+                name_lookup: &lookup,
                 notify: tx.clone(),
                 pool: threadpool.clone(),
             };
