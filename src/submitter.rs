@@ -1,8 +1,8 @@
 
 
+use reqwest::IntoUrl;
 use colored::*;
 use serde_derive::{Serialize, Deserialize};
-use log::debug;
 
 use std::convert::From;
 
@@ -10,7 +10,6 @@ use crate::step::Step;
 
 use reqwest;
 
-use hostname;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StepResult {
@@ -29,45 +28,28 @@ pub struct WebHook {
     tests: Vec<StepResult>,
 }
 
-pub fn submit_webhook(
+pub fn submit_webhook<U: IntoUrl, I: Into<String>>(
     results: &Vec<StepResult>,
-    url: &str,
-    hostname: Option<&str>,
+    url: U,
+    hostname: I,
 ) -> Result<(), reqwest::Error> {
-    debug!("Submitting webhook to:{}", url);
 
-    let hostname = match hostname {
-        Some(hostname) => String::from(hostname),
-        None => hostname::get_hostname().unwrap_or_else(|| String::from("")),
-    };
-
-    debug!("Hostname is:{}", hostname);
 
     let has_errors = results.iter().any(|result| result.pass == false);
 
-    debug!("Has errors is:{}", has_errors);
-
     let payload = WebHook {
-        hostname: hostname,
+        hostname: hostname.into(),
         has_errors: has_errors,
         tests: results.clone(),
     };
-
-    debug!("WebHook payload is:{:?}", payload);
 
     let client = reqwest::Client::new();
 
     let builder = client.post(url);
 
-    debug!("Create Reqwest Client");
-
     let builder = builder.json(&payload);
 
-    debug!("Appended JSON payload");
-
-    let result = builder.send()?;
-
-    debug!("Sent request! Result is {:?}", result);
+    builder.send()?;
 
     Ok(())
 }

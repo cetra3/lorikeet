@@ -14,6 +14,8 @@ use lorikeet::yaml::get_steps;
 
 use std::time::Duration;
 
+use hostname;
+
 #[derive(StructOpt, Debug)]
 #[structopt(name = "lorikeet", about = "a parallel test runner for devops")]
 struct Arguments {
@@ -22,6 +24,9 @@ struct Arguments {
 
     #[structopt(short = "c", long = "config", help = "Configuration File")]
     config: Option<String>,
+
+    #[structopt(short = "h", long = "hostname", help = "Hostname")]
+    hostname: Option<String>,
 
     #[structopt(short = "t", long = "terminal", help = "Force terminal colours")]
     term: bool,
@@ -75,8 +80,12 @@ fn main() {
 
     debug!("Steps finished! Submitting webhooks");
 
+    let hostname = opt.hostname.unwrap_or_else(|| {
+        hostname::get_hostname().unwrap_or("".into())
+    });
+
     for url in opt.webhook {
-        lorikeet::submitter::submit_webhook(&results, &url, None).expect("Could not send webhook")
+        lorikeet::submitter::submit_webhook(&results, &url, &hostname).expect("Could not send webhook")
     }
 
     if let Some(path) = opt.junit {
