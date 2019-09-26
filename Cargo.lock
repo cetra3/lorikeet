@@ -673,7 +673,7 @@ dependencies = [
 
 [[package]]
 name = "lorikeet"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "atty 0.2.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "chashmap 2.2.2 (registry+https://github.com/rust-lang/crates.io-index)",

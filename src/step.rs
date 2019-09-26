@@ -23,9 +23,9 @@ use std::collections::HashMap;
 
 use sys_info::{disk_info, loadavg, mem_info};
 
-use serde_derive::{Serialize, Deserialize};
 use lazy_static::lazy_static;
 use log::debug;
+use serde_derive::{Deserialize, Serialize};
 
 use chashmap::CHashMap;
 
@@ -115,6 +115,7 @@ pub enum HttpVariant {
 
 lazy_static! {
     static ref COOKIES: CHashMap<String, CookieJar> = CHashMap::new();
+    pub static ref STEP_OUTPUT: CHashMap<String, String> = CHashMap::new();
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -141,19 +142,25 @@ pub struct HttpOptions {
     #[serde(default)]
     form: Option<HashMap<String, String>>,
     #[serde(default)]
-    multipart: Option<HashMap<String, PathOrValue>>,
+    multipart: Option<HashMap<String, MultipartValue>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum PathOrValue {
+pub enum MultipartValue {
     Value(String),
     Path(PathStruct),
+    Step(StepStruct),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PathStruct {
     file: PathBuf,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct StepStruct {
+    step: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -280,7 +287,10 @@ impl RunType {
 
     fn run(&self) -> Result<String, String> {
         match *self {
-            RunType::Step(ref val) => Ok(val.clone()),
+            RunType::Step(ref val) => match STEP_OUTPUT.get(val) {
+                Some(val) => Ok(val.to_string()),
+                None => return Err(format!("Step {} could not be found", val)),
+            },
             RunType::Value(ref val) => Ok(val.clone()),
             RunType::Bash(ref val) => {
                 let bashopts = match *val {
@@ -362,10 +372,17 @@ impl RunType {
 
                     for (key, val) in multipart.into_iter() {
                         form = match val {
-                            PathOrValue::Value(string) => form.text(key, string),
-                            PathOrValue::Path(path_struct) => form
-                                .file(key, path_struct.file)
-                                .map_err(|err| format!("{}", err))?,
+                            MultipartValue::Value(string) => form.text(key, string),
+                            MultipartValue::Path(path_struct) => {
+                                form.file(key, path_struct.file)
+                                    .map_err(|err| format!("{}", err))?
+                            }
+                            MultipartValue::Step(step) => match STEP_OUTPUT.get(&step.step) {
+                                Some(val) => form.text(key, val.to_string()),
+                                None => {
+                                    return Err(format!("Step {} could not be found", &step.step))
+                                }
+                            },
                         }
                     }
 

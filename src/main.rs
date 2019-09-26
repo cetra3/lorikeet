@@ -1,4 +1,3 @@
-
 use structopt::StructOpt;
 
 use std::path::{Path, PathBuf};
@@ -80,12 +79,13 @@ fn main() {
 
     debug!("Steps finished! Submitting webhooks");
 
-    let hostname = opt.hostname.unwrap_or_else(|| {
-        hostname::get_hostname().unwrap_or("".into())
-    });
+    let hostname = opt
+        .hostname
+        .unwrap_or_else(|| hostname::get_hostname().unwrap_or("".into()));
 
     for url in opt.webhook {
-        lorikeet::submitter::submit_webhook(&results, &url, &hostname).expect("Could not send webhook")
+        lorikeet::submitter::submit_webhook(&results, &url, &hostname)
+            .expect("Could not send webhook")
     }
 
     if let Some(path) = opt.junit {

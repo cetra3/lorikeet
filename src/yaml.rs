@@ -2,9 +2,9 @@ use crate::step::FilterType;
 use crate::step::RegexVariant;
 use std::fs::File;
 
+use log::debug;
 use serde::Serialize;
 use serde_derive::Deserialize;
-use log::debug;
 
 use serde_yaml::{self, Value};
 use tera::{Context, Error as TeraError, Tera};

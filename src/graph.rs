@@ -3,7 +3,7 @@ use crate::step::Step;
 use failure::{err_msg, Error};
 use petgraph;
 use petgraph::prelude::GraphMap;
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Require;

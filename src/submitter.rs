@@ -1,15 +1,12 @@
-
-
-use reqwest::IntoUrl;
 use colored::*;
-use serde_derive::{Serialize, Deserialize};
+use reqwest::IntoUrl;
+use serde_derive::{Deserialize, Serialize};
 
 use std::convert::From;
 
 use crate::step::Step;
 
 use reqwest;
-
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StepResult {
@@ -33,8 +30,6 @@ pub fn submit_webhook<U: IntoUrl, I: Into<String>>(
     url: U,
     hostname: I,
 ) -> Result<(), reqwest::Error> {
-
-
     let has_errors = results.iter().any(|result| result.pass == false);
 
     let payload = WebHook {
@@ -56,7 +51,6 @@ pub fn submit_webhook<U: IntoUrl, I: Into<String>>(
 
 impl StepResult {
     pub fn terminal_print(&self, colours: &bool) {
-
         let mut message = format!("- name: {}\n", self.name);
 
         if let Some(ref description) = self.description {
@@ -86,7 +80,7 @@ impl StepResult {
             match self.pass {
                 true => {
                     println!("{}", message.green().bold());
-                },
+                }
                 false => {
                     println!("{}", message.red().bold());
                 }

@@ -5,7 +5,7 @@ use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use crate::step::{ExpectType, Outcome, RetryPolicy, RunType, Step};
+use crate::step::{ExpectType, Outcome, RetryPolicy, RunType, Step, STEP_OUTPUT};
 
 use crate::graph::{create_graph, Require};
 use petgraph::prelude::GraphMap;
@@ -29,6 +29,7 @@ pub struct StepRunner<'a> {
     pub graph: Arc<GraphMap<usize, Require, Directed>>,
     pub steps: Arc<Mutex<Vec<Status>>>,
     pub pool: ThreadPool,
+    pub name: &'a str,
     pub name_lookup: &'a CHashMap<&'a str, usize>,
     pub index: usize,
     pub notify: Sender<usize>,
@@ -93,19 +94,7 @@ impl<'a> StepRunner<'a> {
         if cur_steps[self.index] == Status::Outstanding {
             cur_steps[self.index] = Status::InProgress;
 
-            let mut run = self.run.clone();
-
-            //If the run type is `step`, we need to get the output of this step
-            if let RunType::Step(ref step) = self.run {
-                let step_ref: &str = step;
-                let run_index = self.name_lookup.get(&*step_ref).unwrap();
-
-                if let Status::Completed(ref outcome) = cur_steps[*run_index] {
-                    if let Some(ref output) = outcome.output {
-                        run = RunType::Step(output.clone());
-                    }
-                }
-            }
+            let run = self.run.clone();
 
             let expect = self.expect.clone();
             let retry = self.retry;
@@ -113,11 +102,16 @@ impl<'a> StepRunner<'a> {
             let index = self.index;
             let steps = self.steps.clone();
             let filters = self.filters.clone();
+            let name = self.name.to_string();
 
             //let task = task::current();
             self.pool.execute(move || {
                 let outcome = run.execute(expect, filters, retry);
                 debug!("Step `{}` done: {:?}", index, outcome);
+                if let Some(ref output) = outcome.output {
+                    STEP_OUTPUT.insert(name, output.clone());
+                }
+
                 steps.lock().unwrap()[index] = Status::Completed(outcome);
                 tx.send(index).expect("Could not notify executor");
             });
@@ -152,6 +146,7 @@ pub fn run_steps(steps: &mut Vec<Step>) -> Result<(), Error> {
                 expect: steps[i].expect.clone(),
                 retry: steps[i].retry,
                 filters: steps[i].filters.clone(),
+                name: &steps[i].name,
                 graph: shared_graph.clone(),
                 steps: steps_status.clone(),
                 index: i,
