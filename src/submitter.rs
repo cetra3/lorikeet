@@ -1,6 +1,6 @@
 use colored::*;
 use reqwest::IntoUrl;
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 use std::convert::From;
 
@@ -25,7 +25,7 @@ pub struct WebHook {
     tests: Vec<StepResult>,
 }
 
-pub fn submit_webhook<U: IntoUrl, I: Into<String>>(
+pub async fn submit_webhook<U: IntoUrl, I: Into<String>>(
     results: &Vec<StepResult>,
     url: U,
     hostname: I,
@@ -44,7 +44,7 @@ pub fn submit_webhook<U: IntoUrl, I: Into<String>>(
 
     let builder = builder.json(&payload);
 
-    builder.send()?;
+    builder.send().await?;
 
     Ok(())
 }

@@ -2,7 +2,7 @@ use structopt::StructOpt;
 
 use std::path::{Path, PathBuf};
 
-use failure::Error;
+use anyhow::Error;
 
 use log::{debug, trace};
 
@@ -49,7 +49,8 @@ struct Arguments {
     junit: Option<PathBuf>,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     openssl_probe::init_ssl_cert_env_vars();
 
     let opt = Arguments::from_args();
@@ -62,7 +63,10 @@ fn main() {
 
     let mut results = Vec::new();
 
-    for step in run_steps_or_error(&opt.test_plan, &opt.config).into_iter() {
+    for step in run_steps_or_error(&opt.test_plan, &opt.config)
+        .await
+        .into_iter()
+    {
         if let Some(ref outcome) = step.outcome {
             if let Some(_) = outcome.error {
                 has_errors = true;
@@ -79,12 +83,15 @@ fn main() {
 
     debug!("Steps finished! Submitting webhooks");
 
-    let hostname = opt
-        .hostname
-        .unwrap_or_else(|| hostname::get_hostname().unwrap_or("".into()));
+    let hostname = opt.hostname.unwrap_or_else(|| {
+        hostname::get()
+            .map(|val| val.to_string_lossy().to_string())
+            .unwrap_or("".into())
+    });
 
     for url in opt.webhook {
         lorikeet::submitter::submit_webhook(&results, &url, &hostname)
+            .await
             .expect("Could not send webhook")
     }
 
@@ -98,7 +105,7 @@ fn main() {
 }
 
 // Runs the steps, or if there is an issue running the steps, then return the error as a step
-fn run_steps_or_error<P: AsRef<Path>, Q: AsRef<Path>>(
+async fn run_steps_or_error<P: AsRef<Path>, Q: AsRef<Path>>(
     file_path: P,
     config_path: &Option<Q>,
 ) -> Vec<Step> {
@@ -109,7 +116,7 @@ fn run_steps_or_error<P: AsRef<Path>, Q: AsRef<Path>>(
 
     trace!("Steps:{:?}", steps);
 
-    match run_steps(&mut steps) {
+    match run_steps(&mut steps).await {
         Ok(_) => steps,
         Err(err) => vec![step_from_error(err)],
     }

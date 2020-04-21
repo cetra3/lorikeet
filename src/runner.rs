@@ -1,9 +1,9 @@
 use crate::step::FilterType;
-use std::sync::mpsc::Sender;
 
-use std::sync::mpsc::channel;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use tokio::sync::Mutex;
 
 use crate::step::{ExpectType, Outcome, RetryPolicy, RunType, Step, STEP_OUTPUT};
 
@@ -11,13 +11,11 @@ use crate::graph::{create_graph, Require};
 use petgraph::prelude::GraphMap;
 use petgraph::{Directed, Direction};
 
-use serde_derive::Deserialize;
+use serde::Deserialize;
 
 use log::debug;
 
-use failure::{err_msg, Error};
-
-use threadpool::ThreadPool;
+use anyhow::{anyhow, Error};
 
 use chashmap::CHashMap;
 
@@ -28,11 +26,10 @@ pub struct StepRunner<'a> {
     pub filters: Vec<FilterType>,
     pub graph: Arc<GraphMap<usize, Require, Directed>>,
     pub steps: Arc<Mutex<Vec<Status>>>,
-    pub pool: ThreadPool,
     pub name: &'a str,
     pub name_lookup: &'a CHashMap<&'a str, usize>,
     pub index: usize,
-    pub notify: Sender<usize>,
+    pub notify: UnboundedSender<usize>,
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -43,10 +40,10 @@ pub enum Status {
 }
 
 impl<'a> StepRunner<'a> {
-    pub fn poll(&self) {
+    pub async fn poll(&self) {
         debug!("Poll received for `{}`", self.index);
 
-        let mut cur_steps = self.steps.lock().expect("Could not get mutex for steps");
+        let mut cur_steps = self.steps.lock().await;
 
         match cur_steps[self.index] {
             //If it's already completed, return
@@ -105,21 +102,21 @@ impl<'a> StepRunner<'a> {
             let name = self.name.to_string();
 
             //let task = task::current();
-            self.pool.execute(move || {
-                let outcome = run.execute(expect, filters, retry);
+            tokio::spawn(async move {
+                let outcome = run.execute(expect, filters, retry).await;
                 debug!("Step `{}` done: {:?}", index, outcome);
                 if let Some(ref output) = outcome.output {
                     STEP_OUTPUT.insert(name, output.clone());
                 }
 
-                steps.lock().unwrap()[index] = Status::Completed(outcome);
+                steps.lock().await[index] = Status::Completed(outcome);
                 tx.send(index).expect("Could not notify executor");
             });
         }
     }
 }
 
-pub fn run_steps(steps: &mut Vec<Step>) -> Result<(), Error> {
+pub async fn run_steps(steps: &mut Vec<Step>) -> Result<(), Error> {
     let graph = create_graph(&steps)?;
 
     let steps_status: Arc<Mutex<Vec<Status>>> =
@@ -137,8 +134,7 @@ pub fn run_steps(steps: &mut Vec<Step>) -> Result<(), Error> {
 
         let mut runners = Vec::new();
 
-        let (tx, rx) = channel();
-        let threadpool = ThreadPool::default();
+        let (tx, mut rx) = unbounded_channel();
 
         for i in 0..steps.len() {
             let future = StepRunner {
@@ -152,7 +148,6 @@ pub fn run_steps(steps: &mut Vec<Step>) -> Result<(), Error> {
                 index: i,
                 name_lookup: &lookup,
                 notify: tx.clone(),
-                pool: threadpool.clone(),
             };
 
             runners.push(future);
@@ -160,24 +155,22 @@ pub fn run_steps(steps: &mut Vec<Step>) -> Result<(), Error> {
 
         //Kick off the process
         for runner in runners.iter_mut() {
-            runner.poll();
+            runner.poll().await;
         }
 
         for _ in 0..steps.len() {
-            let finished = rx.recv()?;
-
-            for neighbor in shared_graph.neighbors_directed(finished, Direction::Outgoing) {
-                runners[neighbor].poll();
+            if let Some(finished) = rx.recv().await {
+                for neighbor in shared_graph.neighbors_directed(finished, Direction::Outgoing) {
+                    runners[neighbor].poll().await;
+                }
             }
         }
-
-        threadpool.join();
     }
 
     let steps_ptr =
-        Arc::try_unwrap(steps_status).map_err(|_| err_msg("Could not unwrap arc pointer"))?;
+        Arc::try_unwrap(steps_status).map_err(|_| anyhow!("Could not unwrap arc pointer"))?;
 
-    for (i, status) in steps_ptr.into_inner()?.into_iter().enumerate() {
+    for (i, status) in steps_ptr.into_inner().into_iter().enumerate() {
         if let Status::Completed(outcome) = status {
             steps[i].outcome = Some(outcome);
         }

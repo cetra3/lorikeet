@@ -52,6 +52,11 @@ The name comes from the [Rainbow Lorikeet](https://en.wikipedia.org/wiki/Rainbow
 
 They are also very noisy birds.
 
+## Changes in `0.11.0`
+
+* Initial Async Version
+* Updates to library dependencies
+
 ## Changes in `0.10.0`
 
 * Upgrade to 2018 crate format

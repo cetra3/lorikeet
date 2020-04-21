@@ -1,36 +1,23 @@
+mod bash;
+mod http;
+mod system;
+
+pub use bash::BashVariant;
+pub use http::HttpVariant;
+pub use system::SystemVariant;
+
 use regex::Regex;
-use std::path::PathBuf;
-use std::process::Command;
 
-use reqwest::{
-    header::{HeaderValue, COOKIE, SET_COOKIE},
-    Method,
-};
-
-use cookie::{Cookie, CookieJar};
-
-use serde::de::{Deserialize, Deserializer, Error};
-use serde::ser::Serializer;
-use std::thread;
+use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
+use tokio::time::delay_for;
 
 use jmespath;
 
-use std::io::Read;
-use std::str::FromStr;
-
-use std::collections::HashMap;
-
-use sys_info::{disk_info, loadavg, mem_info};
-
 use lazy_static::lazy_static;
 use log::debug;
-use serde_derive::{Deserialize, Serialize};
 
 use chashmap::CHashMap;
-
-use reqwest::multipart::Form;
-use reqwest::{self, RedirectPolicy};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Outcome {
@@ -86,114 +73,12 @@ pub enum RunType {
     System(SystemVariant),
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SystemVariant {
-    MemTotal,
-    MemFree,
-    MemAvailable,
-    LoadAvg1m,
-    LoadAvg5m,
-    LoadAvg15m,
-    DiskTotal,
-    DiskFree,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum BashVariant {
-    CmdOnly(String),
-    Options(BashOptions),
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum HttpVariant {
-    UrlOnly(String),
-    Options(HttpOptions),
-}
-
 lazy_static! {
-    static ref COOKIES: CHashMap<String, CookieJar> = CHashMap::new();
     pub static ref STEP_OUTPUT: CHashMap<String, String> = CHashMap::new();
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct HttpOptions {
-    url: String,
-    #[serde(
-        default,
-        deserialize_with = "string_to_method",
-        serialize_with = "method_to_string"
-    )]
-    method: Method,
-    #[serde(default = "default_cookies")]
-    save_cookies: bool,
-    #[serde(default = "default_status")]
-    status: u16,
-    #[serde(default)]
-    headers: Option<HashMap<String, String>>,
-    #[serde(default)]
-    user: Option<String>,
-    #[serde(default)]
-    body: Option<String>,
-    #[serde(default)]
-    pass: Option<String>,
-    #[serde(default)]
-    form: Option<HashMap<String, String>>,
-    #[serde(default)]
-    multipart: Option<HashMap<String, MultipartValue>>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum MultipartValue {
-    Value(String),
-    Path(PathStruct),
-    Step(StepStruct),
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct PathStruct {
-    file: PathBuf,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct StepStruct {
-    step: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct BashOptions {
-    cmd: String,
-    full_error: bool,
-}
-
-fn method_to_string<S>(method: &Method, s: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    s.serialize_str(method.as_ref())
-}
-
-fn string_to_method<'de, D>(d: D) -> Result<Method, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    Deserialize::deserialize(d)
-        .and_then(|val: String| Method::from_str(&val).map_err(Error::custom))
-}
-
-fn default_cookies() -> bool {
-    false
-}
-
-fn default_status() -> u16 {
-    200
-}
-
 impl RunType {
-    pub fn execute(
+    pub async fn execute(
         &self,
         expect: ExpectType,
         filters: Vec<FilterType>,
@@ -204,7 +89,7 @@ impl RunType {
         if retry.initial_delay_ms > 0 {
             debug!("Initially Sleeping for {} ms", retry.initial_delay_ms);
             let delay = Duration::from_millis(retry.initial_delay_ms as u64);
-            thread::sleep(delay);
+            delay_for(delay).await;
         }
 
         let try_count = retry.retry_count + 1;
@@ -221,7 +106,7 @@ impl RunType {
                 if retry.retry_delay_ms > 0 {
                     debug!("Sleeping for {} ms", retry.retry_delay_ms);
                     let delay = Duration::from_millis(retry.retry_delay_ms as u64);
-                    thread::sleep(delay);
+                    delay_for(delay).await;
                 }
             }
 
@@ -229,7 +114,7 @@ impl RunType {
             error = String::new();
 
             //Run the runner first
-            match self.run() {
+            match self.run().await {
                 Ok(run_out) => {
                     output = run_out;
                     successful = true;
@@ -285,188 +170,16 @@ impl RunType {
         };
     }
 
-    fn run(&self) -> Result<String, String> {
+    async fn run(&self) -> Result<String, String> {
         match *self {
             RunType::Step(ref val) => match STEP_OUTPUT.get(val) {
                 Some(val) => Ok(val.to_string()),
                 None => return Err(format!("Step {} could not be found", val)),
             },
             RunType::Value(ref val) => Ok(val.clone()),
-            RunType::Bash(ref val) => {
-                let bashopts = match *val {
-                    BashVariant::CmdOnly(ref val) => BashOptions {
-                        cmd: val.clone(),
-                        full_error: false,
-                    },
-                    BashVariant::Options(ref opts) => opts.clone(),
-                };
-
-                match Command::new("bash").arg("-c").arg(bashopts.cmd).output() {
-                    Ok(output) => {
-                        if output.status.success() {
-                            Ok(format!("{}", String::from_utf8_lossy(&output.stdout)))
-                        } else {
-                            if bashopts.full_error {
-                                Err(format!(
-                                    "Status Code:{}\nError:{}\nOutput:{}",
-                                    output.status.code().unwrap_or(1),
-                                    String::from_utf8_lossy(&output.stderr),
-                                    String::from_utf8_lossy(&output.stdout)
-                                ))
-                            } else {
-                                Err(String::from_utf8_lossy(&output.stderr).to_string())
-                            }
-                        }
-                    }
-                    Err(err) => Err(format!("Err:{:?}", err)),
-                }
-            }
-            RunType::Http(ref val) => {
-                let mut httpops = match *val {
-                    HttpVariant::UrlOnly(ref val) => HttpOptions {
-                        url: val.clone(),
-                        method: Method::GET,
-                        status: default_status(),
-                        headers: None,
-                        save_cookies: default_cookies(),
-                        user: None,
-                        pass: None,
-                        body: None,
-                        form: None,
-                        multipart: None,
-                    },
-                    HttpVariant::Options(ref opts) => opts.clone(),
-                };
-
-                let client = reqwest::ClientBuilder::new()
-                    .redirect(RedirectPolicy::none())
-                    .build()
-                    .map_err(|err| format!("{}", err))?;
-
-                let url = reqwest::Url::from_str(&httpops.url)
-                    .map_err(|err| format!("Failed to parse url `{}`: {}", httpops.url, err))?;
-
-                let hostname: String = url
-                    .host_str()
-                    .map(|str| String::from(str))
-                    .ok_or_else(|| format!("No host could be found for url: {}", url))?;
-
-                if (httpops.form.is_some() || httpops.multipart.is_some() || httpops.body.is_some())
-                    && httpops.method == Method::GET
-                {
-                    httpops.method = Method::POST;
-                }
-
-                let mut request = client.request(httpops.method, url);
-
-                if let Some(user) = httpops.user {
-                    request = request.basic_auth(user, httpops.pass)
-                }
-
-                if let Some(form) = httpops.form {
-                    request = request.form(&form)
-                }
-
-                if let Some(multipart) = httpops.multipart {
-                    let mut form = Form::new();
-
-                    for (key, val) in multipart.into_iter() {
-                        form = match val {
-                            MultipartValue::Value(string) => form.text(key, string),
-                            MultipartValue::Path(path_struct) => {
-                                form.file(key, path_struct.file)
-                                    .map_err(|err| format!("{}", err))?
-                            }
-                            MultipartValue::Step(step) => match STEP_OUTPUT.get(&step.step) {
-                                Some(val) => form.text(key, val.to_string()),
-                                None => {
-                                    return Err(format!("Step {} could not be found", &step.step))
-                                }
-                            },
-                        }
-                    }
-
-                    request = request.multipart(form)
-                }
-
-                if let Some(body) = httpops.body {
-                    request = request.body(body);
-                }
-
-                if let Some(cookie_jar) = COOKIES.get(&hostname) {
-                    let cookie_strings: Vec<String> =
-                        cookie_jar.iter().map(Cookie::to_string).collect();
-                    request = request.header(COOKIE, cookie_strings.join("; "))
-                }
-
-                if let Some(headers) = httpops.headers {
-                    for (key, val) in headers.into_iter() {
-                        request = request.header(&*key, &*val);
-                    }
-                }
-
-                let mut response = client
-                    .execute(request.build().map_err(|err| format!("{:?}", err))?)
-                    .map_err(|err| format!("Error connecting to url {}", err))?;
-                let mut output = String::new();
-
-                if response.status().as_u16() != httpops.status {
-                    return Err(format!(
-                        "returned status `{}` does not match expected `{}`",
-                        response.status().as_u16(),
-                        httpops.status
-                    ));
-                }
-
-                response
-                    .read_to_string(&mut output)
-                    .map_err(|err| format!("{:?}", err))?;
-
-                if httpops.save_cookies {
-                    let new_cookies = response.headers().get_all(SET_COOKIE);
-
-                    COOKIES.alter(hostname, |value| {
-                        let mut cookie_jar = value.unwrap_or(CookieJar::new());
-                        for cookie in new_cookies
-                            .iter()
-                            .flat_map(HeaderValue::to_str)
-                            .map(String::from)
-                            .flat_map(Cookie::parse)
-                        {
-                            cookie_jar.add(cookie);
-                        }
-                        Some(cookie_jar)
-                    });
-                }
-
-                return Ok(output);
-            }
-            RunType::System(ref variant) => match *variant {
-                SystemVariant::LoadAvg1m => loadavg()
-                    .map(|load| load.one.to_string())
-                    .map_err(|_| String::from(format!("Could not get load"))),
-                SystemVariant::LoadAvg5m => loadavg()
-                    .map(|load| load.five.to_string())
-                    .map_err(|_| String::from(format!("Could not get load"))),
-                SystemVariant::LoadAvg15m => loadavg()
-                    .map(|load| load.fifteen.to_string())
-                    .map_err(|_| String::from(format!("Could not get load"))),
-                SystemVariant::MemAvailable => mem_info()
-                    .map(|mem| mem.avail.to_string())
-                    .map_err(|_| String::from(format!("Could not get memory"))),
-                SystemVariant::MemFree => mem_info()
-                    .map(|mem| mem.free.to_string())
-                    .map_err(|_| String::from(format!("Could not get memory"))),
-                SystemVariant::MemTotal => mem_info()
-                    .map(|mem| mem.total.to_string())
-                    .map_err(|_| String::from(format!("Could not get memory"))),
-                SystemVariant::DiskTotal => disk_info()
-                    .map(|disk| disk.total.to_string())
-                    .map_err(|_| String::from(format!("Could not get disk"))),
-                SystemVariant::DiskFree => disk_info()
-                    .map(|disk| disk.free.to_string())
-                    .map_err(|_| String::from(format!("Could not get disk"))),
-            },
+            RunType::Bash(ref val) => val.run().await,
+            RunType::Http(ref val) => val.run().await,
+            RunType::System(ref val) => val.run().await,
         }
     }
 }

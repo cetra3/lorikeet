@@ -7,7 +7,7 @@ use std::path::Path;
 
 use crate::submitter::StepResult;
 
-use failure::Error;
+use anyhow::Error;
 use std::fs::create_dir_all;
 
 pub fn create_junit(
@@ -45,7 +45,9 @@ pub fn create_junit(
 
     let hostname = match hostname {
         Some(hostname) => String::from(hostname),
-        None => hostname::get_hostname().unwrap_or_else(|| String::from("")),
+        None => hostname::get()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|_| String::from("")),
     };
 
     let mut testsuite = BytesStart::borrowed(b"testsuite", b"testsuite".len());

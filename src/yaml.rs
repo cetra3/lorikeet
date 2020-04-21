@@ -3,15 +3,14 @@ use crate::step::RegexVariant;
 use std::fs::File;
 
 use log::debug;
-use serde::Serialize;
-use serde_derive::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use serde_yaml::{self, Value};
-use tera::{Context, Error as TeraError, Tera};
+use tera::{Context, Tera};
 
 use std::path::Path;
 
-use failure::{err_msg, Error};
+use anyhow::{anyhow, Error};
 use std::io::Read;
 
 use crate::step::{
@@ -109,24 +108,12 @@ fn get_filters(step: &StepYaml) -> Vec<FilterType> {
     return filters;
 }
 
-fn nice_error(e: TeraError) -> Error {
-    let mut result = String::new();
-
-    for e in e.iter() {
-        result.push_str(&e.to_string());
-        result.push_str("\n");
-    }
-
-    err_msg(result)
-}
-
 pub fn get_steps_raw<T: Serialize>(yaml_contents: &str, context: &T) -> Result<Vec<Step>, Error> {
     let mut tera = Tera::default();
 
-    tera.add_raw_template("test_plan", yaml_contents)
-        .map_err(nice_error)?;
+    tera.add_raw_template("test_plan", yaml_contents)?;
 
-    let test_plan_yaml = tera.render("test_plan", context).map_err(nice_error)?;
+    let test_plan_yaml = tera.render("test_plan", &Context::from_serialize(context)?)?;
 
     debug!("YAML output:\n{}", test_plan_yaml);
 
@@ -175,7 +162,7 @@ pub fn get_steps<P: AsRef<Path>, Q: AsRef<Path>>(
     let path_ref = file_path.as_ref();
 
     let mut f = File::open(path_ref)
-        .map_err(|err| err_msg(format!("Could not open file {:?}: {}", path_ref, err)))?;
+        .map_err(|err| anyhow!("Could not open file {:?}: {}", path_ref, err))?;
 
     f.read_to_string(&mut file_contents)?;
 
@@ -184,17 +171,17 @@ pub fn get_steps<P: AsRef<Path>, Q: AsRef<Path>>(
             let c = File::open(path)?;
 
             let value: Value = serde_yaml::from_reader(c).map_err(|err| {
-                err_msg(format!(
+                anyhow!(
                     "Could not parse config {:?} as YAML: {}",
                     path.as_ref(),
                     err
-                ))
+                )
             })?;
 
             get_steps_raw(&file_contents, &value)
-                .map_err(|err| err_msg(format!("Could not parse file {:?}: {}", path_ref, err)))
+                .map_err(|err| anyhow!("Could not parse file {:?}: {}", path_ref, err))
         }
-        &None => get_steps_raw(&file_contents, &Context::new())
-            .map_err(|err| err_msg(format!("Could not parse file {:?}: {}", path_ref, err))),
+        &None => get_steps_raw(&file_contents, &Value::Mapping(serde_yaml::Mapping::new()))
+            .map_err(|err| anyhow!("Could not parse file {:?}: {}", path_ref, err)),
     }
 }
