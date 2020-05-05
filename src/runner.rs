@@ -141,11 +141,19 @@ fn can_start(
     debug!("Checking if we can start for {}", idx);
 
     for neighbor in graph.neighbors_directed(idx, Direction::Incoming) {
-        if statuses[neighbor] == Status::Awaiting {
-            debug!("Neighbour {} Not Completed", neighbor);
-            return false;
-        } else {
-            debug!("Neighbour {} Completed", neighbor);
+        match statuses[neighbor] {
+            Status::Awaiting => {
+                debug!("Neighbour {} Not Completed", neighbor);
+                return false;
+            }
+            Status::Completed(ref outcome) => {
+                if outcome.error.is_some() {
+                    debug!("Neighbour {} Has Error", neighbor);
+                    return false;
+                } else {
+                    debug!("Neighbour {} Completed", neighbor);
+                }
+            }
         }
     }
 

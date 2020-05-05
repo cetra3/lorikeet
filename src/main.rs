@@ -57,6 +57,8 @@ async fn main() {
 
     env_logger::init();
 
+    debug!("Loading Steps from `{}`", opt.test_plan);
+
     let mut has_errors = false;
 
     let colours = atty::is(atty::Stream::Stdout) || opt.term;
@@ -81,21 +83,26 @@ async fn main() {
         results.push(result);
     }
 
-    debug!("Steps finished! Submitting webhooks");
+    debug!("Steps finished!");
 
-    let hostname = opt.hostname.unwrap_or_else(|| {
-        hostname::get()
-            .map(|val| val.to_string_lossy().to_string())
-            .unwrap_or("".into())
-    });
+    if opt.webhook.len() > 0 {
+        let hostname = opt.hostname.unwrap_or_else(|| {
+            hostname::get()
+                .map(|val| val.to_string_lossy().to_string())
+                .unwrap_or("".into())
+        });
 
-    for url in opt.webhook {
-        lorikeet::submitter::submit_webhook(&results, &url, &hostname)
-            .await
-            .expect("Could not send webhook")
+
+        for url in opt.webhook {
+            debug!("Sending webhook to: {}", url);
+            lorikeet::submitter::submit_webhook(&results, &url, &hostname)
+                .await
+                .expect("Could not send webhook")
+        }
     }
 
     if let Some(path) = opt.junit {
+        debug!("Creating junit file at `{}`", path.display());
         lorikeet::junit::create_junit(&results, &path, None).expect("Coult not create junit file");
     }
 
