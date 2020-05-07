@@ -92,7 +92,6 @@ async fn main() {
                 .unwrap_or("".into())
         });
 
-
         for url in opt.webhook {
             debug!("Sending webhook to: {}", url);
             lorikeet::submitter::submit_webhook(&results, &url, &hostname)

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/cetra3/lorikeet/blob/master/lorikeet.svg">
+  <img src="https://raw.githubusercontent.com/cetra3/lorikeet/master/lorikeet.svg">
 </p>
 
 
