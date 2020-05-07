@@ -1,3 +1,5 @@
+![](./lorikeet.svg)
+
 # Lorikeet
 
 A Parallel test runner for DevOps.
