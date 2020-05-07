@@ -1,4 +1,7 @@
-![](./lorikeet.svg)
+<p align="center">
+  <img src="https://github.com/cetra3/lorikeet/blob/master/lorikeet.svg">
+</p>
+
 
 # Lorikeet
 
