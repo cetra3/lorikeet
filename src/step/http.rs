@@ -80,6 +80,8 @@ pub struct HttpOptions {
     form: Option<HashMap<String, String>>,
     #[serde(default)]
     multipart: Option<HashMap<String, MultipartValue>>,
+    #[serde(default)]
+    verify_ssl: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -114,14 +116,18 @@ impl HttpVariant {
                 body: None,
                 form: None,
                 multipart: None,
+                verify_ssl: None,
             },
             HttpVariant::Options(ref opts) => opts.clone(),
         };
 
-        let client = reqwest::ClientBuilder::new()
-            .redirect(Policy::none())
-            .build()
-            .map_err(|err| format!("{}", err))?;
+        let mut client_builder = reqwest::ClientBuilder::new().redirect(Policy::none());
+
+        if let Some(verify_ssl) = httpops.verify_ssl {
+            client_builder = client_builder.danger_accept_invalid_certs(!verify_ssl);
+        }
+
+        let client = client_builder.build().map_err(|err| format!("{}", err))?;
 
         let url = reqwest::Url::from_str(&httpops.url)
             .map_err(|err| format!("Failed to parse url `{}`: {}", httpops.url, err))?;
