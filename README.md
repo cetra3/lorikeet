@@ -284,7 +284,7 @@ Or provide the following options:
 * `form`:  Key/Value pairs for a form POST submission.  If method is set to `GET`, then this will set the method to `POST`
 * `multipart`: Multipart request.  Key/Value pairs Like the `form` option but allows file upload as well.
 * `body`: Like the `form`/`multipart` options but a raw string instead of form data for JSON uploads
-* `verify_ssl`: Verify SSL on the remote host.  Defaults to `true`.  **Warning**: Disabling SSL verification will cause Lorikeet to trust _any_ host it communicates with, which can expose you to numerous vulnerabilities. You should only use this as a last resort.
+* `verify_ssl`: Verify SSL on the remote host.  Defaults to `true`.  **Warning**: Disabling SSL verification will cause Lorikeet to trust _any_ host it communicates with, which can expose you to numerous vulnerabilities.  You should only use this as a last resort.
 
 As a more elaborate example:
 
