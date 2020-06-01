@@ -51,8 +51,6 @@ struct Arguments {
 
 #[tokio::main]
 async fn main() {
-    openssl_probe::init_ssl_cert_env_vars();
-
     let opt = Arguments::from_args();
 
     env_logger::init();

@@ -14,7 +14,8 @@ use anyhow::{anyhow, Error};
 use std::io::Read;
 
 use crate::step::{
-    BashVariant, ExpectType, HttpVariant, Requirement, RetryPolicy, RunType, Step, SystemVariant,
+    BashVariant, DiskVariant, ExpectType, HttpVariant, Requirement, RetryPolicy, RunType, Step,
+    SystemVariant,
 };
 use linked_hash_map::LinkedHashMap;
 
@@ -26,6 +27,7 @@ struct StepYaml {
     step: Option<String>,
     http: Option<HttpVariant>,
     system: Option<SystemVariant>,
+    disk: Option<DiskVariant>,
     matches: Option<String>,
     matches_not: Option<String>,
     #[serde(default)]
@@ -69,6 +71,10 @@ fn get_runtype(step: &StepYaml) -> RunType {
 
     if let Some(ref variant) = step.system {
         return RunType::System(variant.clone());
+    }
+
+    if let Some(ref variant) = step.disk {
+        return RunType::Disk(variant.clone());
     }
 
     return RunType::Value(step.value.clone().unwrap_or(String::new()));

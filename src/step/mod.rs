@@ -1,8 +1,10 @@
 mod bash;
+mod disk;
 mod http;
 mod system;
 
 pub use bash::BashVariant;
+pub use disk::DiskVariant;
 pub use http::HttpVariant;
 pub use system::SystemVariant;
 
@@ -71,6 +73,7 @@ pub enum RunType {
     Bash(BashVariant),
     Http(HttpVariant),
     System(SystemVariant),
+    Disk(DiskVariant),
 }
 
 lazy_static! {
@@ -180,6 +183,7 @@ impl RunType {
             RunType::Bash(ref val) => val.run().await,
             RunType::Http(ref val) => val.run().await,
             RunType::System(ref val) => val.run().await,
+            RunType::Disk(ref val) => val.run().await,
         }
     }
 }
@@ -302,10 +306,12 @@ impl FilterType {
     }
 }
 
+lazy_static! {
+    static ref NUMBER_FILTER: Regex = Regex::new("[^-0-9.,]").unwrap();
+}
+
 impl ExpectType {
     fn check(&self, val: &str) -> Result<(), String> {
-        let number_filter = Regex::new("[^-0-9.,]").unwrap();
-
         match *self {
             ExpectType::Anything => Ok(()),
             ExpectType::MatchesNot(ref match_string) => {
@@ -337,7 +343,7 @@ impl ExpectType {
                 }
             }
             ExpectType::GreaterThan(ref num) => {
-                match number_filter.replace_all(val, "").parse::<f64>() {
+                match NUMBER_FILTER.replace_all(val, "").parse::<f64>() {
                     Ok(compare) => {
                         if compare > *num {
                             Ok(())
@@ -352,7 +358,7 @@ impl ExpectType {
                 }
             }
             ExpectType::LessThan(ref num) => {
-                match number_filter.replace_all(val, "").parse::<f64>() {
+                match NUMBER_FILTER.replace_all(val, "").parse::<f64>() {
                     Ok(compare) => {
                         if compare < *num {
                             Ok(())
