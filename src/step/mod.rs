@@ -12,9 +12,9 @@ use regex::Regex;
 
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
-use tokio::time::delay_for;
+use tokio::time::sleep;
 
-use jmespath;
+use jmespatch;
 
 use lazy_static::lazy_static;
 use log::debug;
@@ -92,7 +92,7 @@ impl RunType {
         if retry.initial_delay_ms > 0 {
             debug!("Initially Sleeping for {} ms", retry.initial_delay_ms);
             let delay = Duration::from_millis(retry.initial_delay_ms as u64);
-            delay_for(delay).await;
+            sleep(delay).await;
         }
 
         let try_count = retry.retry_count + 1;
@@ -109,7 +109,7 @@ impl RunType {
                 if retry.retry_delay_ms > 0 {
                     debug!("Sleeping for {} ms", retry.retry_delay_ms);
                     let delay = Duration::from_millis(retry.retry_delay_ms as u64);
-                    delay_for(delay).await;
+                    sleep(delay).await;
                 }
             }
 
@@ -236,10 +236,10 @@ impl FilterType {
         match *self {
             FilterType::NoOutput => Ok(String::from("")),
             FilterType::JmesPath(ref jmes) => {
-                let expr = jmespath::compile(jmes)
+                let expr = jmespatch::compile(jmes)
                     .map_err(|err| format!("Could not compile jmespath:{}", err))?;
 
-                let data = jmespath::Variable::from_json(val)
+                let data = jmespatch::Variable::from_json(val)
                     .map_err(|err| format!("Could not format as json:{}", err))?;
 
                 let result = expr

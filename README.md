@@ -57,6 +57,11 @@ The name comes from the [Rainbow Lorikeet](https://en.wikipedia.org/wiki/Rainbow
 
 They are also very noisy birds.
 
+## Changes in `0.12.0`
+
+* Update to Tokio 1.0
+* Updates to all library dependencies
+
 ## Changes in `0.11.0`
 
 * Initial Async Version
