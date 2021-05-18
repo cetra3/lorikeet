@@ -1,4 +1,7 @@
+use crate::step::output_renderer;
+
 use super::STEP_OUTPUT;
+use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use reqwest::{
@@ -23,13 +26,14 @@ use std::{path::PathBuf, str::FromStr};
 
 lazy_static! {
     static ref COOKIES: CHashMap<String, CookieJar> = CHashMap::new();
+    static ref REGEX_OUTPUT: Regex = Regex::new("\\$\\{(step_output.[^}]+)\\}").unwrap();
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum HttpVariant {
     UrlOnly(String),
-    Options(HttpOptions),
+    Options(Box<HttpOptions>),
 }
 
 fn method_to_string<S>(method: &Method, s: S) -> Result<S::Ok, S::Error>
@@ -118,7 +122,7 @@ impl HttpVariant {
                 multipart: None,
                 verify_ssl: None,
             },
-            HttpVariant::Options(ref opts) => opts.clone(),
+            HttpVariant::Options(ref opts) => *opts.clone(),
         };
 
         let mut client_builder = reqwest::ClientBuilder::new().redirect(Policy::none());
@@ -134,7 +138,7 @@ impl HttpVariant {
 
         let hostname: String = url
             .host_str()
-            .map(|str| String::from(str))
+            .map(String::from)
             .ok_or_else(|| format!("No host could be found for url: {}", url))?;
 
         if (httpops.form.is_some() || httpops.multipart.is_some() || httpops.body.is_some())
@@ -183,7 +187,7 @@ impl HttpVariant {
         }
 
         if let Some(body) = httpops.body {
-            request = request.body(body);
+            request = request.body(output_renderer(&body)?);
         }
 
         if let Some(cookie_jar) = COOKIES.get(&hostname) {
@@ -214,7 +218,7 @@ impl HttpVariant {
             let new_cookies = response.headers().get_all(SET_COOKIE);
 
             COOKIES.alter(hostname, |value| {
-                let mut cookie_jar = value.unwrap_or(CookieJar::new());
+                let mut cookie_jar = value.unwrap_or_default();
                 for cookie in new_cookies
                     .iter()
                     .flat_map(HeaderValue::to_str)

@@ -77,7 +77,7 @@ fn get_runtype(step: &StepYaml) -> RunType {
         return RunType::Disk(variant.clone());
     }
 
-    return RunType::Value(step.value.clone().unwrap_or(String::new()));
+    RunType::Value(step.value.clone().unwrap_or_default())
 }
 
 fn get_expecttype(step: &StepYaml) -> ExpectType {
@@ -97,7 +97,7 @@ fn get_expecttype(step: &StepYaml) -> ExpectType {
         return ExpectType::LessThan(string.parse().expect("Could not parse number"));
     }
 
-    return ExpectType::Anything;
+    ExpectType::Anything
 }
 
 fn get_filters(step: &StepYaml) -> Vec<FilterType> {
@@ -111,7 +111,7 @@ fn get_filters(step: &StepYaml) -> Vec<FilterType> {
         filters.push(FilterType::Regex(variant.clone()))
     };
 
-    return filters;
+    filters
 }
 
 pub fn get_steps_raw<T: Serialize>(yaml_contents: &str, context: &T) -> Result<Vec<Step>, Error> {
@@ -136,22 +136,22 @@ pub fn get_steps_raw<T: Serialize>(yaml_contents: &str, context: &T) -> Result<V
         let retry_policy = get_retry_policy(&step);
 
         steps.push(Step {
-            name: name,
-            run: run,
+            name,
+            run,
             do_output: step.do_output.unwrap_or(true),
-            expect: expect,
+            expect,
             description: step.description,
-            filters: filters,
+            filters,
             retry: retry_policy,
             outcome: None,
             require: step
                 .require
                 .map(|require| require.to_vec())
-                .unwrap_or(Vec::new()),
+                .unwrap_or_default(),
             required_by: step
                 .required_by
                 .map(|require| require.to_vec())
-                .unwrap_or(Vec::new()),
+                .unwrap_or_default(),
         });
     }
 
@@ -172,8 +172,8 @@ pub fn get_steps<P: AsRef<Path>, Q: AsRef<Path>>(
 
     f.read_to_string(&mut file_contents)?;
 
-    match config_path {
-        &Some(ref path) => {
+    match *config_path {
+        Some(ref path) => {
             let c = File::open(path)?;
 
             let value: Value = serde_yaml::from_reader(c).map_err(|err| {
@@ -187,7 +187,7 @@ pub fn get_steps<P: AsRef<Path>, Q: AsRef<Path>>(
             get_steps_raw(&file_contents, &value)
                 .map_err(|err| anyhow!("Could not parse file {:?}: {}", path_ref, err))
         }
-        &None => get_steps_raw(&file_contents, &Value::Mapping(serde_yaml::Mapping::new()))
+        None => get_steps_raw(&file_contents, &Value::Mapping(serde_yaml::Mapping::new()))
             .map_err(|err| anyhow!("Could not parse file {:?}: {}", path_ref, err)),
     }
 }

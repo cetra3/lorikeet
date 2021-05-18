@@ -15,6 +15,8 @@ pub struct BashOptions {
 
 use std::process::Command;
 
+use super::output_renderer;
+
 impl BashVariant {
     pub async fn run(&self) -> Result<String, String> {
         let bashopts = match *self {
@@ -26,21 +28,21 @@ impl BashVariant {
         };
 
         tokio::task::spawn_blocking(move || {
-            match Command::new("bash").arg("-c").arg(bashopts.cmd).output() {
+            let cmd = output_renderer(&bashopts.cmd)?;
+
+            match Command::new("bash").arg("-c").arg(cmd).output() {
                 Ok(output) => {
                     if output.status.success() {
                         Ok(format!("{}", String::from_utf8_lossy(&output.stdout)))
+                    } else if bashopts.full_error {
+                        Err(format!(
+                            "Status Code:{}\nError:{}\nOutput:{}",
+                            output.status.code().unwrap_or(1),
+                            String::from_utf8_lossy(&output.stderr),
+                            String::from_utf8_lossy(&output.stdout)
+                        ))
                     } else {
-                        if bashopts.full_error {
-                            Err(format!(
-                                "Status Code:{}\nError:{}\nOutput:{}",
-                                output.status.code().unwrap_or(1),
-                                String::from_utf8_lossy(&output.stderr),
-                                String::from_utf8_lossy(&output.stdout)
-                            ))
-                        } else {
-                            Err(String::from_utf8_lossy(&output.stderr).to_string())
-                        }
+                        Err(String::from_utf8_lossy(&output.stderr).to_string())
                     }
                 }
                 Err(err) => Err(format!("Err:{:?}", err)),

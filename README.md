@@ -57,6 +57,21 @@ The name comes from the [Rainbow Lorikeet](https://en.wikipedia.org/wiki/Rainbow
 
 They are also very noisy birds.
 
+## Changes in `0.12.1`
+
+* Fixed all clippy issues
+* JMESPath strings are no longer quoted
+* Added ability to include step output in subsequent requests.  You can do this by including `${step_output.<step_name>}` where `<step_name>` is the name of the step to include as output. Currently you will still need to "require" this step
+
+```yaml
+example_output:
+  require: another_step
+  http:
+    url: http://example.com
+    body: |
+      ${step_output.another_step}
+```
+
 ## Changes in `0.12.0`
 
 * Update to Tokio 1.0

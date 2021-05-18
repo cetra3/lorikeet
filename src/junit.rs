@@ -1,5 +1,3 @@
-use hostname;
-
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::Writer;
 use std::fs::File;
@@ -11,7 +9,7 @@ use anyhow::Error;
 use std::fs::create_dir_all;
 
 pub fn create_junit(
-    results: &Vec<StepResult>,
+    results: &[StepResult],
     file_path: &Path,
     hostname: Option<&str>,
 ) -> Result<(), Error> {
@@ -34,10 +32,10 @@ pub fn create_junit(
             if let Some(ref output) = step.error {
                 return output == "Dependency Not Met";
             }
-            return false;
+            false
         })
         .count();
-    let failure_num = results.iter().filter(|step| step.pass == false).count() - skip_num;
+    let failure_num = results.iter().filter(|step| !step.pass).count() - skip_num;
 
     let time = results
         .iter()
@@ -89,10 +87,7 @@ pub fn create_junit(
         writer.write_event(Event::End(BytesEnd::borrowed(b"system-out")))?;
 
         if !result.pass {
-            let error_text = match result.error {
-                Some(ref text) => text,
-                None => "",
-            };
+            let error_text = result.error.as_deref().unwrap_or("");
 
             if error_text == "Dependency Not Met" {
                 let mut skipped = BytesStart::borrowed(b"skipped", b"skipped".len());
@@ -125,8 +120,8 @@ fn filter_invalid_chars(input: &str) -> String {
     let mut output = String::new();
 
     for ch in input.chars() {
-        if (ch >= '\u{0020}' && ch <= '\u{D7FF}')
-            || (ch >= '\u{E000}' && ch <= '\u{FFFD}')
+        if ('\u{0020}'..='\u{D7FF}').contains(&ch)
+            || ('\u{E000}'..='\u{FFFD}').contains(&ch)
             || ch == '\u{0009}'
             || ch == '\u{0A}'
             || ch == '\u{0D}'

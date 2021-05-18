@@ -14,7 +14,11 @@ use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
 
-use jmespatch;
+use tera::{Context, Tera};
+
+use std::{borrow::Cow, collections::HashMap};
+
+use jmespatch::{self, Variable};
 
 use lazy_static::lazy_static;
 use log::debug;
@@ -78,6 +82,7 @@ pub enum RunType {
 
 lazy_static! {
     pub static ref STEP_OUTPUT: CHashMap<String, String> = CHashMap::new();
+    static ref REGEX_OUTPUT: Regex = Regex::new("\\$\\{(step_output.[^}]+)\\}").unwrap();
 }
 
 impl RunType {
@@ -246,7 +251,10 @@ impl FilterType {
                     .search(data)
                     .map_err(|err| format!("Could not find jmes expression:{}", err))?;
 
-                let output = (*result).to_string();
+                let output = match &*result {
+                    Variable::String(val) => val.clone(),
+                    other => other.to_string(),
+                };
 
                 if output != "null" {
                     Ok(output)
@@ -259,11 +267,11 @@ impl FilterType {
             }
             FilterType::Regex(ref regex_var) => {
                 let opts = match regex_var {
-                    &RegexVariant::MatchOnly(ref string) => RegexOptions {
+                    RegexVariant::MatchOnly(ref string) => RegexOptions {
                         matches: string.clone(),
                         group: "0".into(),
                     },
-                    &RegexVariant::Options(ref opts) => opts.clone(),
+                    RegexVariant::Options(ref opts) => opts.clone(),
                 };
 
                 let regex = Regex::new(&opts.matches).map_err(|err| {
@@ -302,6 +310,35 @@ impl FilterType {
                     }
                 }
             }
+        }
+    }
+}
+
+fn output_renderer(input: &str) -> Result<String, String> {
+    let cow_body = REGEX_OUTPUT.replace_all(input, "{{$1}}");
+
+    match cow_body {
+        Cow::Borrowed(_) => Ok(input.to_string()),
+        Cow::Owned(cow_body) => {
+            let mut tera = Tera::default();
+
+            tera.add_raw_template("step_body", &cow_body)
+                .map_err(|err| format!("Template Error: {}", err))?;
+
+            let step_output: HashMap<String, String> = STEP_OUTPUT.clone().into_iter().collect();
+
+            let mut context = HashMap::new();
+            context.insert("step_output", step_output);
+
+            let body_rendered = tera
+                .render(
+                    "step_body",
+                    &Context::from_serialize(&context)
+                        .map_err(|err| format!("Context Error: {}", err))?,
+                )
+                .map_err(|err| format!("Template Rendering Error: {:?}", err))?;
+
+            Ok(body_rendered)
         }
     }
 }

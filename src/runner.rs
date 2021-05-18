@@ -65,13 +65,13 @@ pub async fn run_steps(steps: &mut Vec<Step>) -> Result<(), Error> {
 
         let (tx, mut rx) = unbounded_channel();
 
-        for i in 0..steps.len() {
+        for (i, step) in steps.iter().enumerate() {
             let future = StepRunner {
-                run: steps[i].run.clone(),
-                expect: steps[i].expect.clone(),
-                retry: steps[i].retry,
-                filters: steps[i].filters.clone(),
-                name: steps[i].name.clone(),
+                run: step.run.clone(),
+                expect: step.expect.clone(),
+                retry: step.retry,
+                filters: step.filters.clone(),
+                name: step.name.clone(),
                 index: i,
                 notify: tx.clone(),
             };
@@ -133,11 +133,7 @@ pub async fn run_steps(steps: &mut Vec<Step>) -> Result<(), Error> {
     Ok(())
 }
 
-fn can_start(
-    idx: usize,
-    statuses: &Vec<Status>,
-    graph: &GraphMap<usize, Require, Directed>,
-) -> bool {
+fn can_start(idx: usize, statuses: &[Status], graph: &GraphMap<usize, Require, Directed>) -> bool {
     debug!("Checking if we can start for {}", idx);
 
     for neighbor in graph.neighbors_directed(idx, Direction::Incoming) {
@@ -157,5 +153,5 @@ fn can_start(
         }
     }
 
-    return true;
+    true
 }

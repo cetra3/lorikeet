@@ -6,8 +6,6 @@ use std::convert::From;
 
 use crate::step::Step;
 
-use reqwest;
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StepResult {
     pub name: String,
@@ -26,16 +24,16 @@ pub struct WebHook {
 }
 
 pub async fn submit_webhook<U: IntoUrl, I: Into<String>>(
-    results: &Vec<StepResult>,
+    results: &[StepResult],
     url: U,
     hostname: I,
 ) -> Result<(), reqwest::Error> {
-    let has_errors = results.iter().any(|result| result.pass == false);
+    let has_errors = results.iter().any(|result| !result.pass);
 
     let payload = WebHook {
         hostname: hostname.into(),
-        has_errors: has_errors,
-        tests: results.clone(),
+        has_errors,
+        tests: results.to_vec(),
     };
 
     let client = reqwest::Client::new();
@@ -59,8 +57,8 @@ impl StepResult {
 
         message.push_str(&format!("  pass: {}\n", self.pass));
 
-        if self.output != "" {
-            if self.output.contains("\n") {
+        if !self.output.is_empty() {
+            if self.output.contains('\n') {
                 message.push_str(&format!(
                     "  output: |\n    {}\n",
                     self.output.replace("\n", "\n    ")

@@ -13,8 +13,6 @@ use lorikeet::yaml::get_steps;
 
 use std::time::Duration;
 
-use hostname;
-
 #[derive(StructOpt, Debug)]
 #[structopt(name = "lorikeet", about = "a parallel test runner for devops")]
 struct Arguments {
@@ -68,7 +66,7 @@ async fn main() {
         .into_iter()
     {
         if let Some(ref outcome) = step.outcome {
-            if let Some(_) = outcome.error {
+            if outcome.error.is_some() {
                 has_errors = true;
             }
         }
@@ -83,11 +81,11 @@ async fn main() {
 
     debug!("Steps finished!");
 
-    if opt.webhook.len() > 0 {
+    if !opt.webhook.is_empty() {
         let hostname = opt.hostname.unwrap_or_else(|| {
             hostname::get()
                 .map(|val| val.to_string_lossy().to_string())
-                .unwrap_or("".into())
+                .unwrap_or_else(|_| "".into())
         });
 
         for url in opt.webhook {

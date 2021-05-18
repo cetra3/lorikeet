@@ -61,7 +61,7 @@ impl DiskVariant {
 
         let stavfs = get_stats(&diskops)?;
 
-        return Ok(stavfs.to_string());
+        return Ok(stavfs);
     }
 }
 
@@ -101,7 +101,7 @@ pub fn get_stats(ops: &DiskOptions) -> Result<String, String> {
     };
 
     match ops.output_type {
-        OutputType::Bytes => return Ok(output.to_string()),
+        OutputType::Bytes => Ok(output.to_string()),
         OutputType::Percent => {
             if size == 0 {
                 return Err(format!(
@@ -114,7 +114,7 @@ pub fn get_stats(ops: &DiskOptions) -> Result<String, String> {
                 ((output as f64 / size as f64) * 100.0).round() as usize
             ));
         }
-        OutputType::Human => return Ok(pretty_bytes(output as f64)),
+        OutputType::Human => Ok(pretty_bytes(output as f64)),
     }
 }
 

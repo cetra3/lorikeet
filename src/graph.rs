@@ -1,16 +1,13 @@
 use crate::step::RunType;
 use crate::step::Step;
 use anyhow::{anyhow, Error};
-use petgraph;
 use petgraph::prelude::GraphMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Require;
 
-pub fn create_graph(
-    steps: &Vec<Step>,
-) -> Result<GraphMap<usize, Require, petgraph::Directed>, Error> {
+pub fn create_graph(steps: &[Step]) -> Result<GraphMap<usize, Require, petgraph::Directed>, Error> {
     let mut graph = GraphMap::<usize, Require, petgraph::Directed>::new();
 
     for i in 0..steps.len() {
@@ -33,9 +30,7 @@ pub fn create_graph(
     }
 
     match petgraph::algo::toposort(&graph, None) {
-        Ok(_) => {
-            return Ok(graph);
-        }
+        Ok(_) => Ok(graph),
         Err(err) => {
             return Err(anyhow!(
                 "Could not build step graph: `{}` has a circular dependency",
