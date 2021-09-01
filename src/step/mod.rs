@@ -171,11 +171,11 @@ impl RunType {
         };
 
         //Default Return
-        return Outcome {
+        Outcome {
             output: output_opt,
             error: error_opt,
             duration: start.elapsed(),
-        };
+        }
     }
 
     async fn run(&self) -> Result<String, String> {

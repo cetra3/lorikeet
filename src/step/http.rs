@@ -233,6 +233,6 @@ impl HttpVariant {
 
         let output = response.text().await.map_err(|err| format!("{:?}", err))?;
 
-        return Ok(output);
+        Ok(output)
     }
 }

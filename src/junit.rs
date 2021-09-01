@@ -102,7 +102,7 @@ pub fn create_junit(
 
                 writer.write_event(Event::Start(failure))?;
                 writer.write_event(Event::Text(BytesText::from_plain_str(
-                    &filter_invalid_chars(&error_text),
+                    &filter_invalid_chars(error_text),
                 )))?;
                 writer.write_event(Event::End(BytesEnd::borrowed(b"failure")))?;
             }

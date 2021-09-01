@@ -1,6 +1,6 @@
 [package]
 name = "lorikeet"
-version = "0.12.1"
+version = "0.13.0"
 authors = ["cetra3 <cetra3@hotmail.com>"]
 license = "MIT/Apache-2.0"
 description = "a parallel test runner for devops"
@@ -35,3 +35,4 @@ cookie = "0.14.3"
 tokio = {version = "1.0", features = ["full"]}
 tokio-util = {version = "0.6", features= ["codec"]}
 libc = "0.2.86"
+futures = "0.3.15"

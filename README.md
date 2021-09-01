@@ -57,6 +57,11 @@ The name comes from the [Rainbow Lorikeet](https://en.wikipedia.org/wiki/Rainbow
 
 They are also very noisy birds.
 
+## Changes in `0.13.0`
+
+* Breaking Change: The `run_steps` method returns a stream of steps as they complete, rather than waiting for them all to finish
+* More Clippy Lints
+
 ## Changes in `0.12.1`
 
 * Fixed all clippy issues

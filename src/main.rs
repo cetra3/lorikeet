@@ -1,3 +1,4 @@
+use futures::StreamExt;
 use structopt::StructOpt;
 
 use std::path::{Path, PathBuf};
@@ -55,29 +56,12 @@ async fn main() {
 
     debug!("Loading Steps from `{}`", opt.test_plan);
 
-    let mut has_errors = false;
 
     let colours = atty::is(atty::Stream::Stdout) || opt.term;
 
-    let mut results = Vec::new();
+    let results =  run_steps_or_error(&opt.test_plan, &opt.config, opt.quiet, colours).await;
 
-    for step in run_steps_or_error(&opt.test_plan, &opt.config)
-        .await
-        .into_iter()
-    {
-        if let Some(ref outcome) = step.outcome {
-            if outcome.error.is_some() {
-                has_errors = true;
-            }
-        }
-
-        let result = StepResult::from(step);
-        if !opt.quiet {
-            result.terminal_print(&colours);
-        }
-
-        results.push(result);
-    }
+    let has_errors = results.iter().any(|val| !val.pass);
 
     debug!("Steps finished!");
 
@@ -110,28 +94,48 @@ async fn main() {
 async fn run_steps_or_error<P: AsRef<Path>, Q: AsRef<Path>>(
     file_path: P,
     config_path: &Option<Q>,
-) -> Vec<Step> {
-    let mut steps = match get_steps(file_path, config_path) {
+    quiet: bool,
+    colours: bool
+) -> Vec<StepResult> {
+    let steps = match get_steps(file_path, config_path) {
         Ok(steps) => steps,
-        Err(err) => return vec![step_from_error(err)],
+        Err(err) => return vec![step_from_error(err, quiet, colours)],
     };
 
     trace!("Steps:{:?}", steps);
 
-    match run_steps(&mut steps).await {
-        Ok(_) => steps,
-        Err(err) => vec![step_from_error(err)],
+    match run_steps(steps) {
+        Ok(mut stream) => {
+
+            let mut results = Vec::new();
+
+            while let Some(step) = stream.next().await {
+
+                let result: StepResult = step.into();
+
+                if !quiet {
+                    result.terminal_print(&colours);
+                }
+
+                results.push(result);
+
+            }
+
+            results
+
+        },
+        Err(err) => vec![step_from_error(err, quiet, colours)],
     }
 }
 
-fn step_from_error(err: Error) -> Step {
+fn step_from_error(err: Error, quiet: bool, colours: bool) -> StepResult {
     let outcome = Outcome {
         output: None,
         error: Some(err.to_string()),
         duration: Duration::default(),
     };
 
-    Step {
+    let result: StepResult = Step {
         name: "lorikeet".into(),
         run: RunType::Value(String::new()),
         do_output: true,
@@ -145,5 +149,11 @@ fn step_from_error(err: Error) -> Step {
         required_by: vec![],
         retry: RetryPolicy::default(),
         outcome: Some(outcome),
+    }.into();
+
+    if !quiet {
+        result.terminal_print(&colours);
     }
+
+    result
 }

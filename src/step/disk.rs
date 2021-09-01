@@ -61,7 +61,7 @@ impl DiskVariant {
 
         let stavfs = get_stats(&diskops)?;
 
-        return Ok(stavfs);
+        Ok(stavfs)
     }
 }
 

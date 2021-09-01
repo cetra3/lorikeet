@@ -1,7 +1,11 @@
 use crate::step::FilterType;
 
+use futures::stream::Stream;
+use std::collections::HashMap;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Duration;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 use crate::step::{ExpectType, Outcome, RetryPolicy, RunType, Step, STEP_OUTPUT};
 
@@ -25,7 +29,7 @@ pub struct StepRunner {
 
 //Spawns into a background task so we can poll the rest
 impl StepRunner {
-    pub async fn poll(self) {
+    pub fn poll(self) {
         debug!("Running: {}", self.name);
 
         tokio::spawn(async move {
@@ -50,87 +54,128 @@ impl StepRunner {
 #[derive(Clone, Debug, PartialEq)]
 enum Status {
     Awaiting,
-    Completed(Outcome),
+    Completed,
+    Error
 }
 
-pub async fn run_steps(steps: &mut Vec<Step>) -> Result<(), Error> {
+pub struct StepStream {
+    channel: UnboundedReceiver<Step>,
+}
+
+impl Stream for StepStream {
+    type Item = Step;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.channel.poll_recv(cx)
+    }
+}
+
+pub fn run_steps(steps: Vec<Step>) -> Result<StepStream, Error> {
     let graph = create_graph(&steps)?;
 
-    let mut statuses = Vec::new();
-    statuses.resize(steps.len(), Status::Awaiting);
+    let mut step_map = steps.into_iter().enumerate().collect::<HashMap<_,_>>();
 
-    //We want the runners to drop after this so we can return the steps status
-    {
-        let mut runners = Vec::new();
+    let (tx_steps, rx_steps) = unbounded_channel();
 
-        let (tx, mut rx) = unbounded_channel();
+    let step_stream = StepStream {
+        channel: rx_steps
+    };
 
-        for (i, step) in steps.iter().enumerate() {
-            let future = StepRunner {
-                run: step.run.clone(),
-                expect: step.expect.clone(),
-                retry: step.retry,
-                filters: step.filters.clone(),
-                name: step.name.clone(),
-                index: i,
-                notify: tx.clone(),
-            };
+    tokio::spawn(async move {
+        let mut statuses = Vec::new();
+        statuses.resize(step_map.len(), Status::Awaiting);
 
-            runners.push(future);
-        }
+        //We want the runners to drop after this so we can return the steps status
+        {
+            let mut runners = Vec::new();
 
-        //We want to start all the ones that don't have any outgoing neighbors
-        let (to_start, waiting) = runners
-            .into_iter()
-            .partition::<Vec<StepRunner>, _>(|job| can_start(job.index, &statuses, &graph));
+            let (tx, mut rx) = unbounded_channel();
 
-        runners = waiting;
+            for (i, step) in step_map.iter() {
+                let future = StepRunner {
+                    run: step.run.clone(),
+                    expect: step.expect.clone(),
+                    retry: step.retry,
+                    filters: step.filters.clone(),
+                    name: step.name.clone(),
+                    index: *i,
+                    notify: tx.clone(),
+                };
 
-        let mut active = 0;
+                runners.push(future);
+            }
 
-        for runner in to_start.into_iter() {
-            runner.poll().await;
-            active += 1;
-        }
+            //We want to start all the ones that don't have any outgoing neighbors
+            let (to_start, waiting) = runners
+                .into_iter()
+                .partition::<Vec<StepRunner>, _>(|job| can_start(job.index, &statuses, &graph));
 
-        while active > 0 {
-            debug!(
-                "Active amount: {}, runners waiting: {}",
-                active,
-                runners.len()
-            );
-            if let Some((idx, outcome)) = rx.recv().await {
-                active -= 1;
-                let has_error = outcome.error.is_some();
+            runners = waiting;
 
-                statuses[idx] = Status::Completed(outcome);
+            let mut active = 0;
 
-                for neighbor in graph.neighbors_directed(idx, Direction::Outgoing) {
-                    if let Some(job_idx) = runners.iter().position(|job| job.index == neighbor) {
-                        if !has_error && can_start(runners[job_idx].index, &statuses, &graph) {
-                            let runner = runners.swap_remove(job_idx);
-                            runner.poll().await;
-                            active += 1;
+            for runner in to_start.into_iter() {
+                runner.poll();
+                active += 1;
+            }
+
+            while active > 0 {
+                debug!(
+                    "Active amount: {}, runners waiting: {}",
+                    active,
+                    runners.len()
+                );
+                if let Some((idx, outcome)) = rx.recv().await {
+                    active -= 1;
+                    let has_error = outcome.error.is_some();
+
+                    statuses[idx] = if has_error {
+                        Status::Error
+                    } else {
+                        Status::Completed
+                    };
+
+                    if let Some(mut step) = step_map.remove(&idx) {
+
+                        step.outcome = Some(outcome);
+                        if tx_steps.send(step).is_err() {
+                            error!("Error sending step!");
+                        }
+
+                    }
+
+                    for neighbor in graph.neighbors_directed(idx, Direction::Outgoing) {
+                        if let Some(job_idx) = runners.iter().position(|job| job.index == neighbor)
+                        {
+                            if !has_error && can_start(runners[job_idx].index, &statuses, &graph) {
+                                let runner = runners.swap_remove(job_idx);
+                                runner.poll();
+                                active += 1;
+                            }
                         }
                     }
                 }
             }
         }
-    }
 
-    for (i, status) in statuses.into_iter().enumerate() {
-        if let Status::Completed(outcome) = status {
-            steps[i].outcome = Some(outcome);
-        } else {
-            steps[i].outcome = Some(Outcome {
-                output: Some("".into()),
-                error: Some("Dependency Not Met".into()),
-                duration: Duration::from_secs(0),
-            });
+        for (i, _status) in statuses.into_iter().enumerate() {
+
+            if let Some(mut step) = step_map.remove(&i) {
+                step.outcome = Some(Outcome {
+                    output: Some("".into()),
+                    error: Some("Dependency Not Met".into()),
+                    duration: Duration::from_secs(0),
+                });
+
+                if tx_steps.send(step).is_err() {
+                    error!("Error sending step!");
+                }
+            }
+
         }
-    }
+    });
 
-    Ok(())
+    Ok(step_stream)
 }
 
 fn can_start(idx: usize, statuses: &[Status], graph: &GraphMap<usize, Require, Directed>) -> bool {
@@ -142,13 +187,12 @@ fn can_start(idx: usize, statuses: &[Status], graph: &GraphMap<usize, Require, D
                 debug!("Neighbour {} Not Completed", neighbor);
                 return false;
             }
-            Status::Completed(ref outcome) => {
-                if outcome.error.is_some() {
-                    debug!("Neighbour {} Has Error", neighbor);
-                    return false;
-                } else {
-                    debug!("Neighbour {} Completed", neighbor);
-                }
+            Status::Completed => {
+                debug!("Neighbour {} Completed", neighbor);
+            }
+            Status::Error => {
+                debug!("Neighbour {} Has Error", neighbor);
+                return false;
             }
         }
     }
