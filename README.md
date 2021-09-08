@@ -61,6 +61,7 @@ They are also very noisy birds.
 
 * Breaking Change: The `run_steps` method returns a stream of steps as they complete, rather than waiting for them all to finish
 * More Clippy Lints
+* Fixed a compilation error on osx
 
 ## Changes in `0.12.1`
 
