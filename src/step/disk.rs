@@ -88,8 +88,8 @@ pub fn get_stats(ops: &DiskOptions) -> Result<String, String> {
         stats.f_blocks, stats.f_bsize, stats.f_frsize, stats.f_bavail, stats.f_bfree
     );
 
-    let size = stats.f_blocks * stats.f_frsize;
-    let free = stats.f_bavail * stats.f_frsize;
+    let size = stats.f_blocks as usize * stats.f_frsize as usize;
+    let free = stats.f_bavail as usize * stats.f_frsize as usize;
     let used = size - free;
 
     debug!("size: {}, free:{}, used:{}", size, free, used);
