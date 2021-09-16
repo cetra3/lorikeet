@@ -62,26 +62,41 @@ pub async fn submit_slack<U: IntoUrl, I: Into<String>>(
             text.push_str("\n\n")
         }
 
-        if !result.output.is_empty() {
-            text.push_str(&format!(
-                "*Output ({:.2}ms)*: ```{}```\n\n",
-                result.duration, result.output
-            ));
-        } else {
-            text.push_str(&format!("*Duration*: ({:.2}ms)`\n\n", result.duration));
-        }
-
         if let Some(ref val) = result.error {
             text.push_str(&format!("*Error*: {}\n\n", val));
+        }
+
+        if result.output.is_empty() {
+            text.push_str(&format!("*Duration*: ({:.2}ms)\n\n", result.duration));
+        } else {
+            text.push_str(&format!("*Output*: ({:.2}ms)\n\n", result.duration));
         }
 
         blocks.push(json!({
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": text
+                "text": truncate(&text, 3000)
             }
         }));
+
+        if !result.output.is_empty() {
+            blocks.push(json!({
+                "type": "rich_text",
+                "elements": [
+                  {
+                    "type": "rich_text_preformatted",
+                    "elements": [
+                      {
+                        "type": "text",
+                        "text": truncate(&result.output, 3000)
+                      }
+                    ]
+                  }
+                ]
+
+            }));
+        }
     }
 
     let payload = json!(
@@ -209,4 +224,26 @@ impl From<Step> for StepResult {
             error,
         }
     }
+}
+
+pub fn truncate(input: &str, len: usize) -> String {
+    if input.len() <= len {
+        return input.to_string();
+    }
+
+    let mut end_idx = len + 1;
+
+    while !input.is_char_boundary(end_idx) {
+        end_idx -= 1;
+    }
+
+    let slice = &input[0..end_idx];
+
+    let mut end_idx = len;
+
+    if let Some(val) = slice.rfind(char::is_whitespace) {
+        end_idx = val;
+    }
+
+    return format!("{}...", &input[0..end_idx]);
 }
