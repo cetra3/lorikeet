@@ -40,6 +40,13 @@ struct Arguments {
     webhook: Vec<String>,
 
     #[structopt(
+        short = "s",
+        long = "slack",
+        help = "Slack Webhook submission URL (multiple values allowed)"
+    )]
+    slack: Vec<String>,
+
+    #[structopt(
         short = "j",
         long = "junit",
         help = "Output a JUnit XML Report to this file",
@@ -56,17 +63,16 @@ async fn main() {
 
     debug!("Loading Steps from `{}`", opt.test_plan);
 
-
     let colours = atty::is(atty::Stream::Stdout) || opt.term;
 
-    let results =  run_steps_or_error(&opt.test_plan, &opt.config, opt.quiet, colours).await;
+    let results = run_steps_or_error(&opt.test_plan, &opt.config, opt.quiet, colours).await;
 
     let has_errors = results.iter().any(|val| !val.pass);
 
     debug!("Steps finished!");
 
     if !opt.webhook.is_empty() {
-        let hostname = opt.hostname.unwrap_or_else(|| {
+        let hostname = opt.hostname.clone().unwrap_or_else(|| {
             hostname::get()
                 .map(|val| val.to_string_lossy().to_string())
                 .unwrap_or_else(|_| "".into())
@@ -75,6 +81,21 @@ async fn main() {
         for url in opt.webhook {
             debug!("Sending webhook to: {}", url);
             lorikeet::submitter::submit_webhook(&results, &url, &hostname)
+                .await
+                .expect("Could not send webhook")
+        }
+    }
+
+    if !opt.slack.is_empty() {
+        let hostname = opt.hostname.unwrap_or_else(|| {
+            hostname::get()
+                .map(|val| val.to_string_lossy().to_string())
+                .unwrap_or_else(|_| "".into())
+        });
+
+        for url in opt.slack {
+            debug!("Sending slack webhook to: {}", url);
+            lorikeet::submitter::submit_slack(&results, &url, &hostname)
                 .await
                 .expect("Could not send webhook")
         }
@@ -95,7 +116,7 @@ async fn run_steps_or_error<P: AsRef<Path>, Q: AsRef<Path>>(
     file_path: P,
     config_path: &Option<Q>,
     quiet: bool,
-    colours: bool
+    colours: bool,
 ) -> Vec<StepResult> {
     let steps = match get_steps(file_path, config_path) {
         Ok(steps) => steps,
@@ -106,11 +127,9 @@ async fn run_steps_or_error<P: AsRef<Path>, Q: AsRef<Path>>(
 
     match run_steps(steps) {
         Ok(mut stream) => {
-
             let mut results = Vec::new();
 
             while let Some(step) = stream.next().await {
-
                 let result: StepResult = step.into();
 
                 if !quiet {
@@ -118,12 +137,10 @@ async fn run_steps_or_error<P: AsRef<Path>, Q: AsRef<Path>>(
                 }
 
                 results.push(result);
-
             }
 
             results
-
-        },
+        }
         Err(err) => vec![step_from_error(err, quiet, colours)],
     }
 }
@@ -149,7 +166,8 @@ fn step_from_error(err: Error, quiet: bool, colours: bool) -> StepResult {
         required_by: vec![],
         retry: RetryPolicy::default(),
         outcome: Some(outcome),
-    }.into();
+    }
+    .into();
 
     if !quiet {
         result.terminal_print(&colours);

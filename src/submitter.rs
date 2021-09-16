@@ -1,6 +1,7 @@
 use colored::*;
 use reqwest::IntoUrl;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 use std::convert::From;
 
@@ -23,6 +24,91 @@ pub struct WebHook {
     tests: Vec<StepResult>,
 }
 
+pub async fn submit_slack<U: IntoUrl, I: Into<String>>(
+    results: &[StepResult],
+    url: U,
+    hostname: I,
+) -> Result<(), reqwest::Error> {
+    let num_errors = results.iter().filter(|result| !result.pass).count();
+
+    if num_errors == 0 {
+        return Ok(());
+    }
+
+    let mut blocks = vec![];
+
+    let title = format!(
+        "{} Error{} from `{}`",
+        num_errors,
+        if num_errors == 1 { "" } else { "s" },
+        hostname.into()
+    );
+
+    blocks.push(json!({
+        "type": "header",
+        "text": {
+            "type": "plain_text",
+            "text": &title,
+            "emoji": true
+        }
+    }));
+
+    for result in results.iter().filter(|result| !result.pass) {
+        let mut text = format!("*Name*: {}", result.name);
+
+        if let Some(ref val) = result.description {
+            text.push_str(&format!(", *Description*: {}\n\n", val));
+        } else {
+            text.push_str("\n\n")
+        }
+
+        if !result.output.is_empty() {
+            text.push_str(&format!(
+                "*Output ({:.2}ms)*: ```{}```\n\n",
+                result.duration, result.output
+            ));
+        } else {
+            text.push_str(&format!("*Duration*: ({:.2}ms)`\n\n", result.duration));
+        }
+
+        if let Some(ref val) = result.error {
+            text.push_str(&format!("*Error*: {}\n\n", val));
+        }
+
+        blocks.push(json!({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": text
+            }
+        }));
+    }
+
+    let payload = json!(
+    {
+        "text": &title,
+        "blocks": blocks
+    }
+    );
+
+    let client = reqwest::Client::new();
+
+    let builder = client.post(url);
+
+    let builder = builder.json(&payload);
+
+    let response = builder.send().await?;
+
+    if !response.status().is_success() {
+        eprintln!("Error submitting slack webhook:");
+        eprintln!("Status: {}", response.status());
+        let val = response.text().await?;
+        eprintln!("Body: {}", val);
+    }
+
+    Ok(())
+}
+
 pub async fn submit_webhook<U: IntoUrl, I: Into<String>>(
     results: &[StepResult],
     url: U,
@@ -42,7 +128,14 @@ pub async fn submit_webhook<U: IntoUrl, I: Into<String>>(
 
     let builder = builder.json(&payload);
 
-    builder.send().await?;
+    let response = builder.send().await?;
+
+    if !response.status().is_success() {
+        eprintln!("Error submitting webhook:");
+        eprintln!("Status: {}", response.status());
+        let val = response.text().await?;
+        eprintln!("Body: {}", val);
+    }
 
     Ok(())
 }

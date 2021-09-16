@@ -57,6 +57,14 @@ The name comes from the [Rainbow Lorikeet](https://en.wikipedia.org/wiki/Rainbow
 
 They are also very noisy birds.
 
+## Changes in `0.13.1`
+
+* Adds slack webhook support.  if there are any steps that have errors, this will be sent to a webhook:
+
+```
+lorikeet -s https://hooks.slack.com/services/<your_webhook_here> test
+```
+
 ## Changes in `0.13.0`
 
 * Breaking Change: The `run_steps` method returns a stream of steps as they complete, rather than waiting for them all to finish

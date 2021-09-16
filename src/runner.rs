@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 use crate::step::{ExpectType, Outcome, RetryPolicy, RunType, Step, STEP_OUTPUT};
 
@@ -55,7 +55,7 @@ impl StepRunner {
 enum Status {
     Awaiting,
     Completed,
-    Error
+    Error,
 }
 
 pub struct StepStream {
@@ -73,13 +73,11 @@ impl Stream for StepStream {
 pub fn run_steps(steps: Vec<Step>) -> Result<StepStream, Error> {
     let graph = create_graph(&steps)?;
 
-    let mut step_map = steps.into_iter().enumerate().collect::<HashMap<_,_>>();
+    let mut step_map = steps.into_iter().enumerate().collect::<HashMap<_, _>>();
 
     let (tx_steps, rx_steps) = unbounded_channel();
 
-    let step_stream = StepStream {
-        channel: rx_steps
-    };
+    let step_stream = StepStream { channel: rx_steps };
 
     tokio::spawn(async move {
         let mut statuses = Vec::new();
@@ -136,12 +134,10 @@ pub fn run_steps(steps: Vec<Step>) -> Result<StepStream, Error> {
                     };
 
                     if let Some(mut step) = step_map.remove(&idx) {
-
                         step.outcome = Some(outcome);
                         if tx_steps.send(step).is_err() {
                             error!("Error sending step!");
                         }
-
                     }
 
                     for neighbor in graph.neighbors_directed(idx, Direction::Outgoing) {
@@ -159,7 +155,6 @@ pub fn run_steps(steps: Vec<Step>) -> Result<StepStream, Error> {
         }
 
         for (i, _status) in statuses.into_iter().enumerate() {
-
             if let Some(mut step) = step_map.remove(&i) {
                 step.outcome = Some(Outcome {
                     output: Some("".into()),
@@ -171,7 +166,6 @@ pub fn run_steps(steps: Vec<Step>) -> Result<StepStream, Error> {
                     error!("Error sending step!");
                 }
             }
-
         }
     });
 
