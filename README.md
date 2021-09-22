@@ -57,6 +57,11 @@ The name comes from the [Rainbow Lorikeet](https://en.wikipedia.org/wiki/Rainbow
 
 They are also very noisy birds.
 
+## Changes in `0.14.0`
+
+* Breaking Change: Add in a default timeout (`timeout_ms`) for http requests to `30000` milliseconds (30 seconds),  This default can be changed as per http options below.
+
+
 ## Changes in `0.13.1`
 
 * Adds slack webhook support.  if there are any steps that have errors, this will be sent to a webhook:
@@ -315,6 +320,7 @@ Or provide the following options:
 * `status`: Check the return status is equal to this value.  Defaults to `200`
 * `user`: Username for Basic Auth
 * `pass`: Password for Basic Auth
+* `timeout_ms`: Timeout in milliseconds for the request, defaults to `30000` (30 seconds). If set to `null` or `~` it will never timeout.
 * `form`:  Key/Value pairs for a form POST submission.  If method is set to `GET`, then this will set the method to `POST`
 * `multipart`: Multipart request.  Key/Value pairs Like the `form` option but allows file upload as well.
 * `body`: Like the `form`/`multipart` options but a raw string instead of form data for JSON uploads

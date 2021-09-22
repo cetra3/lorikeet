@@ -21,7 +21,7 @@ use cookie::{Cookie, CookieJar};
 
 use tokio_util::codec::{BytesCodec, FramedRead};
 
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 use std::{path::PathBuf, str::FromStr};
 
 lazy_static! {
@@ -84,8 +84,14 @@ pub struct HttpOptions {
     form: Option<HashMap<String, String>>,
     #[serde(default)]
     multipart: Option<HashMap<String, MultipartValue>>,
+    #[serde(default = "default_timeout")]
+    timeout_ms: Option<u64>,
     #[serde(default)]
     verify_ssl: Option<bool>,
+}
+
+fn default_timeout() -> Option<u64> {
+    Some(30000)
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -120,12 +126,17 @@ impl HttpVariant {
                 body: None,
                 form: None,
                 multipart: None,
+                timeout_ms: default_timeout(),
                 verify_ssl: None,
             },
             HttpVariant::Options(ref opts) => *opts.clone(),
         };
 
         let mut client_builder = reqwest::ClientBuilder::new().redirect(Policy::none());
+
+        if let Some(timeout) = httpops.timeout_ms {
+            client_builder = client_builder.timeout(Duration::from_millis(timeout));
+        }
 
         if let Some(verify_ssl) = httpops.verify_ssl {
             client_builder = client_builder.danger_accept_invalid_certs(!verify_ssl);
