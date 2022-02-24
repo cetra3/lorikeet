@@ -7,6 +7,11 @@
 
 A Parallel test runner for DevOps.
 
+
+## Download
+
+Download the latest binary for linux or osx from here: [https://github.com/cetra3/lorikeet/releases](https://github.com/cetra3/lorikeet/releases)
+
 ## Overview
 
 Lorikeet is a command line tool and a rust library to run tests for smoke testing and integration testing.  Lorikeet currently supports bash commands and simple http requests along with system information (ram, cpu).
@@ -56,6 +61,20 @@ $ lorikeet -c config.yml test.yml
 The name comes from the [Rainbow Lorikeet](https://en.wikipedia.org/wiki/Rainbow_lorikeet), an Australian Bird which is very colourful.  Like a canary in a coal mine, lorikeet is meant to provide a way of notifying when things go wrong. Rather than running one test framework (one colour), it is meant to be more full spectrum, hence the choice of a bird with rainbow plumage.
 
 They are also very noisy birds.
+
+## Changes in `0.15.0`
+
+* Add in a new option to run a step on failure:
+
+```yaml
+on_fail_example:
+  value: true
+  matches: false
+  on_fail:
+    bash: notify-send "Lorikeet Failed!"
+```
+
+* We now have [releases](https://github.com/cetra3/lorikeet/releases) being generated via github actions
 
 ## Changes in `0.14.0`
 
@@ -173,6 +192,8 @@ Or clone and build this repo:
 ```sh
 cargo build --release
 ```
+
+Alternatively, you can download prebuilt from the [releases](https://github.com/cetra3/lorikeet/releases) page
 
 ## Usage
 
@@ -544,6 +565,23 @@ there_are_four_lights:
   value: 4
   less_than: 5
 ```
+
+### On Fail
+
+You can run another step when a step fails.  This `on_fail` can be any of the step types: bash, http, system, step and value
+
+```yaml
+on_fail_example:
+  value: true
+  matches: false
+  on_fail:
+    bash: notify-send "Lorikeet Failed!"
+```
+
+The output or error of this on fail step will be included in the standard output.
+
+If you are using retry counts, then the `on_fail` step will execute each time the step fail.
+
 
 ### Dependencies
 

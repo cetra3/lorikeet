@@ -150,6 +150,8 @@ fn step_from_error(err: Error, quiet: bool, colours: bool) -> StepResult {
         output: None,
         error: Some(err.to_string()),
         duration: Duration::default(),
+        on_fail_output: None,
+        on_fail_error: None,
     };
 
     let result: StepResult = Step {
@@ -157,6 +159,7 @@ fn step_from_error(err: Error, quiet: bool, colours: bool) -> StepResult {
         run: RunType::Value(String::new()),
         do_output: true,
         expect: ExpectType::Anything,
+        on_fail: None,
         description: Some(
             "This step is shown if there was an error when reading, parsing or running steps"
                 .into(),

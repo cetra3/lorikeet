@@ -21,6 +21,7 @@ pub struct StepRunner {
     pub name: String,
     pub index: usize,
     pub run: RunType,
+    pub on_fail: Option<RunType>,
     pub expect: ExpectType,
     pub retry: RetryPolicy,
     pub filters: Vec<FilterType>,
@@ -35,7 +36,7 @@ impl StepRunner {
         tokio::spawn(async move {
             let outcome = self
                 .run
-                .execute(self.expect, self.filters, self.retry)
+                .execute(self.expect, self.filters, self.retry, self.on_fail)
                 .await;
 
             if let Some(ref output) = outcome.output {
@@ -92,6 +93,7 @@ pub fn run_steps(steps: Vec<Step>) -> Result<StepStream, Error> {
             for (i, step) in step_map.iter() {
                 let future = StepRunner {
                     run: step.run.clone(),
+                    on_fail: step.on_fail.clone(),
                     expect: step.expect.clone(),
                     retry: step.retry,
                     filters: step.filters.clone(),
@@ -160,6 +162,8 @@ pub fn run_steps(steps: Vec<Step>) -> Result<StepStream, Error> {
                     output: Some("".into()),
                     error: Some("Dependency Not Met".into()),
                     duration: Duration::from_secs(0),
+                    on_fail_output: None,
+                    on_fail_error: None,
                 });
 
                 if tx_steps.send(step).is_err() {

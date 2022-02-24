@@ -14,6 +14,8 @@ pub struct StepResult {
     pub pass: bool,
     pub output: String,
     pub error: Option<String>,
+    pub on_fail_output: Option<String>,
+    pub on_fail_error: Option<String>,
     pub duration: f32,
 }
 
@@ -175,9 +177,18 @@ impl StepResult {
                 message.push_str(&format!("  output: {}\n", self.output));
             }
         }
-
         if let Some(ref error) = self.error {
             message.push_str(&format!("  error: {}\n", error));
+        }
+
+        if let Some(ref output) = self.on_fail_output {
+            if !output.trim().is_empty() {
+                message.push_str(&format!("  on_fail_output: {}\n", output));
+            }
+        }
+
+        if let Some(ref error) = self.on_fail_error {
+            message.push_str(&format!("  on_fail_error: {}\n", error));
         }
 
         message.push_str(&format!("  duration: {}ms\n", self.duration));
@@ -203,16 +214,28 @@ impl From<Step> for StepResult {
         let name = step.name;
         let description = step.description;
 
-        let (pass, output, error) = match step.outcome {
+        let (pass, output, error, on_fail_output, on_fail_error) = match step.outcome {
             Some(outcome) => {
                 let output = match step.do_output {
                     true => outcome.output.unwrap_or_default(),
                     false => String::new(),
                 };
 
-                (outcome.error.is_none(), output, outcome.error)
+                (
+                    outcome.error.is_none(),
+                    output,
+                    outcome.error,
+                    outcome.on_fail_output,
+                    outcome.on_fail_error,
+                )
             }
-            None => (false, String::new(), Some(String::from("Not finished"))),
+            None => (
+                false,
+                String::new(),
+                Some(String::from("Not finished")),
+                None,
+                None,
+            ),
         };
 
         StepResult {
@@ -221,6 +244,8 @@ impl From<Step> for StepResult {
             description,
             pass,
             output,
+            on_fail_output,
+            on_fail_error,
             error,
         }
     }

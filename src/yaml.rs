@@ -40,6 +40,7 @@ struct StepYaml {
     retry_count: Option<usize>,
     retry_delay_ms: Option<usize>,
     delay_ms: Option<usize>,
+    on_fail: Option<RunType>,
     require: Option<Requirement>,
     required_by: Option<Requirement>,
 }
@@ -138,6 +139,7 @@ pub fn get_steps_raw<T: Serialize>(yaml_contents: &str, context: &T) -> Result<V
         steps.push(Step {
             name,
             run,
+            on_fail: step.on_fail,
             do_output: step.do_output.unwrap_or(true),
             expect,
             description: step.description,
