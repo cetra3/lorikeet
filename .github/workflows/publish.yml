@@ -1,0 +1,45 @@
+name: publish-lorikeet
+
+# on:
+#   push:
+#     tags:
+#       - "*"
+
+on:
+  push
+
+jobs:
+  build:
+    runs-on: '${{ matrix.os }}'
+    strategy:
+    matrix:
+      include:
+        - os: macos-latest
+          suffix: ''
+        - os: ubuntu-latest
+          suffix: ''
+        - os: windows-latest
+          suffix: .exe
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            services/windows-worker/target
+          key: ${{ runner.os }}-cargo
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+      - uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/lorikeet${{suffix}}
+          tag: ${{ github.ref }}
+          overwrite: true
+          file_glob: true
