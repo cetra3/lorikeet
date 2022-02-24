@@ -1,12 +1,9 @@
 name: publish-lorikeet
 
-# on:
-#   push:
-#     tags:
-#       - "*"
-
 on:
-  push
+  push:
+    tags:
+      - "*"
 
 jobs:
   build:
