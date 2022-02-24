@@ -12,14 +12,14 @@ jobs:
   build:
     runs-on: '${{ matrix.os }}'
     strategy:
-    matrix:
-      include:
-        - os: macos-latest
-          suffix: ''
-        - os: ubuntu-latest
-          suffix: ''
-        - os: windows-latest
-          suffix: .exe
+      matrix:
+        include:
+          - os: macos-latest
+            suffix: ''
+          - os: ubuntu-latest
+            suffix: ''
+          - os: windows-latest
+            suffix: .exe
     steps:
       - uses: actions/checkout@v1
       - uses: actions/cache@v2
