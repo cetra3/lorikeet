@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
+#[cfg(not(target_os = "windows"))]
 use std::cmp;
 
+#[cfg(not(target_os = "windows"))]
 use log::*;
+#[cfg(not(target_os = "windows"))]
 use std::{ffi::CString, mem::zeroed};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -119,10 +122,11 @@ pub fn get_stats(ops: &DiskOptions) -> Result<String, String> {
 }
 
 #[cfg(target_os = "windows")]
-pub fn get_stats(_ops: &DiskOptions) -> Result<u64, String> {
+pub fn get_stats(_ops: &DiskOptions) -> Result<String, String> {
     return Err("Not Implemented Yet".into());
 }
 
+#[cfg(not(target_os = "windows"))]
 pub fn pretty_bytes(num: f64) -> String {
     let negative = if num.is_sign_positive() { "" } else { "-" };
     let num = num.abs();
