@@ -316,7 +316,7 @@ Optionally you can specify not to return the output if you're only interested in
 dont_say_hello:
   bash:
     cmd: echo "hello"
-    get_output: false
+    full_error: false
 ```
 
 #### HTTP Step Type
@@ -336,7 +336,7 @@ Or provide the following options:
 * `url`: The URL of the request to submit
 * `method`: The HTTP method to use, such as POST, GET, DELETE.  Defaults to `GET`
 * `headers`: Key/Value pairs for any custom headers on your request
-* `get_output`:  Return the output of the request.  Defaults to `true`
+* `full_error`:  Return the output of the request.  Defaults to `true`
 * `save_cookies`:  Save any set cookies on this domain.  Defaults to `false`
 * `status`: Check the return status is equal to this value.  Defaults to `200`
 * `user`: Username for Basic Auth
