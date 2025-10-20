@@ -25,30 +25,22 @@ pub struct DiskOptions {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum DiskType {
     Size,
     Used,
+    #[default]
     Free,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum OutputType {
+    #[default]
     Bytes,
     Human,
     Percent,
-}
-
-impl Default for DiskType {
-    fn default() -> Self {
-        DiskType::Free
-    }
-}
-
-impl Default for OutputType {
-    fn default() -> Self {
-        OutputType::Bytes
-    }
 }
 
 impl DiskVariant {
@@ -112,10 +104,10 @@ pub fn get_stats(ops: &DiskOptions) -> Result<String, String> {
                     ops.mount
                 ));
             }
-            return Ok(format!(
+            Ok(format!(
                 "{}%",
                 ((output as f64 / size as f64) * 100.0).round() as usize
-            ));
+            ))
         }
         OutputType::Human => Ok(pretty_bytes(output as f64)),
     }
@@ -141,5 +133,5 @@ pub fn pretty_bytes(num: f64) -> String {
     );
 
     let unit = units[exponent as usize];
-    return format!("{}{:.2}{}", negative, num / delimiter.powi(exponent), unit);
+    format!("{}{:.2}{}", negative, num / delimiter.powi(exponent), unit)
 }

@@ -1,38 +1,35 @@
 [package]
 name = "lorikeet"
-version = "0.15.0"
+version = "0.16.0"
 authors = ["cetra3 <cetra3@hotmail.com>"]
 license = "MIT/Apache-2.0"
 description = "a parallel test runner for devops"
 repository = "https://github.com/cetra3/lorikeet"
 readme = "README.md"
-edition = "2018"
+edition = "2024"
 
 [dependencies]
-petgraph = "0.5.1"
+petgraph = "0.8.3"
 serde = { version = "1.0", features = ["derive"] }
-serde_yaml = "0.8.16"
-linked-hash-map = { version = "0.5.4", features = ["serde_impl"] }
-tera = "1.6.1"
+serde_yaml = "0.9.34"
+linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
+tera = "1.20.0"
 structopt = "0.3.21"
 log = "0.4.14"
-colored = "2.0.0"
+colored = "3.0.0"
 atty = "0.2.14"
-regex = "1.4.3"
-env_logger = "0.8.2"
-reqwest = {version = "0.11.0", features = ["json", "stream", "multipart"] }
-chrono = { version = "0.4.19", features = ["serde"] }
-lazy_static = "1.4.0"
+regex = "1.12.2"
+env_logger = "0.11.8"
+reqwest = {version = "0.12.24", features = ["json", "stream", "multipart"] }
 chashmap = "2.2.2"
-hostname = "0.3.1"
-sys-info = "0.8.0"
-openssl-probe = "0.1.2"
-jmespath = "0.3.0"
+hostname = "0.4.1"
+sys-info = "0.9.1"
+jmespath = "0.4.0"
 anyhow = "1.0.38"
 serde_json = "1.0"
-quick-xml = "0.21.0"
-cookie = "0.14.3"
+quick-xml = "0.38.3"
+cookie = "0.18.1"
 tokio = {version = "1.0", features = ["full"]}
-tokio-util = {version = "0.6", features= ["codec"]}
-libc = "0.2.86"
-futures = "0.3.15"
+tokio-util = {version = "0.7", features= ["codec"]}
+libc = "0.2.177"
+futures = "0.3.31"

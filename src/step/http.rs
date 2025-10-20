@@ -1,33 +1,28 @@
 use crate::step::output_renderer;
 
 use super::STEP_OUTPUT;
-use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use reqwest::{
-    header::{HeaderValue, COOKIE, SET_COOKIE},
+    Body, Method,
+    header::{COOKIE, HeaderValue, SET_COOKIE},
     multipart::Form,
     multipart::Part,
     redirect::Policy,
-    Body, Method,
 };
 
 use tokio::fs::File;
 
 use chashmap::CHashMap;
-use lazy_static::lazy_static;
 
 use cookie::{Cookie, CookieJar};
 
 use tokio_util::codec::{BytesCodec, FramedRead};
 
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, sync::LazyLock, time::Duration};
 use std::{path::PathBuf, str::FromStr};
 
-lazy_static! {
-    static ref COOKIES: CHashMap<String, CookieJar> = CHashMap::new();
-    static ref REGEX_OUTPUT: Regex = Regex::new("\\$\\{(step_output.[^}]+)\\}").unwrap();
-}
+pub static COOKIES: LazyLock<CHashMap<String, CookieJar>> = LazyLock::new(CHashMap::new);
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]

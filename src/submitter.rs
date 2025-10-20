@@ -181,10 +181,10 @@ impl StepResult {
             message.push_str(&format!("  error: {}\n", error));
         }
 
-        if let Some(ref output) = self.on_fail_output {
-            if !output.trim().is_empty() {
-                message.push_str(&format!("  on_fail_output: {}\n", output));
-            }
+        if let Some(ref output) = self.on_fail_output
+            && !output.trim().is_empty()
+        {
+            message.push_str(&format!("  on_fail_output: {}\n", output));
         }
 
         if let Some(ref error) = self.on_fail_error {
@@ -270,5 +270,5 @@ pub fn truncate(input: &str, len: usize) -> String {
         end_idx = val;
     }
 
-    return format!("{}...", &input[0..end_idx]);
+    format!("{}...", &input[0..end_idx])
 }

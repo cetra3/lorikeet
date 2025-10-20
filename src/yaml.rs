@@ -10,7 +10,7 @@ use tera::{Context, Tera};
 
 use std::path::Path;
 
-use anyhow::{anyhow, Error};
+use anyhow::{Error, anyhow};
 use std::io::Read;
 
 use crate::step::{

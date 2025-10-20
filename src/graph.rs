@@ -1,6 +1,6 @@
 use crate::step::RunType;
 use crate::step::Step;
-use anyhow::{anyhow, Error};
+use anyhow::{Error, anyhow};
 use petgraph::prelude::GraphMap;
 use serde::{Deserialize, Serialize};
 
@@ -31,11 +31,9 @@ pub fn create_graph(steps: &[Step]) -> Result<GraphMap<usize, Require, petgraph:
 
     match petgraph::algo::toposort(&graph, None) {
         Ok(_) => Ok(graph),
-        Err(err) => {
-            return Err(anyhow!(
-                "Could not build step graph: `{}` has a circular dependency",
-                steps[err.node_id()].name
-            ));
-        }
+        Err(err) => Err(anyhow!(
+            "Could not build step graph: `{}` has a circular dependency",
+            steps[err.node_id()].name
+        )),
     }
 }

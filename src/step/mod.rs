@@ -11,7 +11,10 @@ pub use system::SystemVariant;
 use regex::Regex;
 
 use serde::{Deserialize, Serialize};
-use std::time::{Duration, Instant};
+use std::{
+    sync::LazyLock,
+    time::{Duration, Instant},
+};
 use tokio::time::sleep;
 
 use tera::{Context, Tera};
@@ -20,7 +23,6 @@ use std::{borrow::Cow, collections::HashMap};
 
 use jmespath::{self, Variable};
 
-use lazy_static::lazy_static;
 use log::debug;
 
 use chashmap::CHashMap;
@@ -83,10 +85,9 @@ pub enum RunType {
     Disk(DiskVariant),
 }
 
-lazy_static! {
-    pub static ref STEP_OUTPUT: CHashMap<String, String> = CHashMap::new();
-    static ref REGEX_OUTPUT: Regex = Regex::new("\\$\\{(step_output.[^}]+)\\}").unwrap();
-}
+pub static STEP_OUTPUT: LazyLock<CHashMap<String, String>> = LazyLock::new(CHashMap::new);
+static REGEX_OUTPUT: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new("\\$\\{(step_output.[^}]+)\\}").unwrap());
 
 impl RunType {
     pub async fn execute(
@@ -167,14 +168,12 @@ impl RunType {
                 }
             }
 
-            if !successful {
-                if let Some(ref on_fail_runner) = on_fail {
-                    match on_fail_runner.run().await {
-                        Ok(val) => {
-                            on_fail_output = Some(val);
-                        }
-                        Err(val) => on_fail_error = Some(val),
+            if !successful && let Some(ref on_fail_runner) = on_fail {
+                match on_fail_runner.run().await {
+                    Ok(val) => {
+                        on_fail_output = Some(val);
                     }
+                    Err(val) => on_fail_error = Some(val),
                 }
             }
         }
@@ -203,7 +202,7 @@ impl RunType {
         match *self {
             RunType::Step(ref val) => match STEP_OUTPUT.get(val) {
                 Some(val) => Ok(val.to_string()),
-                None => return Err(format!("Step {} could not be found", val)),
+                None => Err(format!("Step {} could not be found", val)),
             },
             RunType::Value(ref val) => Ok(val.clone()),
             RunType::Bash(ref val) => val.run().await,
@@ -249,7 +248,9 @@ pub struct RegexOptions {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum ExpectType {
+    #[default]
     Anything,
     Matches(String),
     MatchesNot(String),
@@ -288,11 +289,11 @@ impl FilterType {
             }
             FilterType::Regex(ref regex_var) => {
                 let opts = match regex_var {
-                    RegexVariant::MatchOnly(ref string) => RegexOptions {
+                    RegexVariant::MatchOnly(string) => RegexOptions {
                         matches: string.clone(),
                         group: "0".into(),
                     },
-                    RegexVariant::Options(ref opts) => opts.clone(),
+                    RegexVariant::Options(opts) => opts.clone(),
                 };
 
                 let regex = Regex::new(&opts.matches).map_err(|err| {
@@ -307,28 +308,24 @@ impl FilterType {
                     .ok_or_else(|| format!("Could not find `{}` in output", &opts.matches))?;
 
                 match opts.group.parse::<usize>() {
-                    Ok(num) => {
-                        return captures
-                            .get(num)
-                            .map(|val| val.as_str().into())
-                            .ok_or_else(|| {
-                                format!(
-                                    "Could not find group number `{}` in regex `{}`",
-                                    opts.group, opts.matches
-                                )
-                            });
-                    }
-                    Err(_) => {
-                        return captures
-                            .name(&opts.group)
-                            .map(|val| val.as_str().into())
-                            .ok_or_else(|| {
-                                format!(
-                                    "Could not find group name `{}` in regex `{}`",
-                                    opts.group, opts.matches
-                                )
-                            });
-                    }
+                    Ok(num) => captures
+                        .get(num)
+                        .map(|val| val.as_str().into())
+                        .ok_or_else(|| {
+                            format!(
+                                "Could not find group number `{}` in regex `{}`",
+                                opts.group, opts.matches
+                            )
+                        }),
+                    Err(_) => captures
+                        .name(&opts.group)
+                        .map(|val| val.as_str().into())
+                        .ok_or_else(|| {
+                            format!(
+                                "Could not find group name `{}` in regex `{}`",
+                                opts.group, opts.matches
+                            )
+                        }),
                 }
             }
         }
@@ -364,9 +361,7 @@ fn output_renderer(input: &str) -> Result<String, String> {
     }
 }
 
-lazy_static! {
-    static ref NUMBER_FILTER: Regex = Regex::new("[^-0-9.,]").unwrap();
-}
+static NUMBER_FILTER: LazyLock<Regex> = LazyLock::new(|| Regex::new("[^-0-9.,]").unwrap());
 
 impl ExpectType {
     fn check(&self, val: &str) -> Result<(), String> {
@@ -431,12 +426,6 @@ impl ExpectType {
                 }
             }
         }
-    }
-}
-
-impl Default for ExpectType {
-    fn default() -> Self {
-        ExpectType::Anything
     }
 }
 

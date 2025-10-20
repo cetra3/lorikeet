@@ -5,11 +5,11 @@ use std::collections::HashMap;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
-use crate::step::{ExpectType, Outcome, RetryPolicy, RunType, Step, STEP_OUTPUT};
+use crate::step::{ExpectType, Outcome, RetryPolicy, RunType, STEP_OUTPUT, Step};
 
-use crate::graph::{create_graph, Require};
+use crate::graph::{Require, create_graph};
 use petgraph::prelude::GraphMap;
 use petgraph::{Directed, Direction};
 
@@ -144,12 +144,12 @@ pub fn run_steps(steps: Vec<Step>) -> Result<StepStream, Error> {
 
                     for neighbor in graph.neighbors_directed(idx, Direction::Outgoing) {
                         if let Some(job_idx) = runners.iter().position(|job| job.index == neighbor)
+                            && !has_error
+                            && can_start(runners[job_idx].index, &statuses, &graph)
                         {
-                            if !has_error && can_start(runners[job_idx].index, &statuses, &graph) {
-                                let runner = runners.swap_remove(job_idx);
-                                runner.poll();
-                                active += 1;
-                            }
+                            let runner = runners.swap_remove(job_idx);
+                            runner.poll();
+                            active += 1;
                         }
                     }
                 }

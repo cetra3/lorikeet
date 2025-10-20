@@ -28,7 +28,7 @@ check_reddit:
   regex: the front page of the internet
 
 login_to_reddit:
-  http: 
+  http:
     url: https://www.reddit.com/api/login/{{user}}
     save_cookies: true
     form:
@@ -61,6 +61,11 @@ $ lorikeet -c config.yml test.yml
 The name comes from the [Rainbow Lorikeet](https://en.wikipedia.org/wiki/Rainbow_lorikeet), an Australian Bird which is very colourful.  Like a canary in a coal mine, lorikeet is meant to provide a way of notifying when things go wrong. Rather than running one test framework (one colour), it is meant to be more full spectrum, hence the choice of a bird with rainbow plumage.
 
 They are also very noisy birds.
+
+## Changes in `0.16.0`
+
+* Upgraded dependencies to newer versions
+* Updated edition to `2024`
 
 ## Changes in `0.15.0`
 
@@ -351,7 +356,7 @@ As a more elaborate example:
 
 ```yaml
 login_to_reddit:
-  http: 
+  http:
     url: https://www.reddit.com/api/login/{{user}}
     save_cookies: true
     form:
@@ -422,7 +427,7 @@ If you want to make more assertions on the one step, you can use the 'step' step
 ```yaml
 say_hello:
   value: hello
-  
+
 test_step:
   step: say_hello
   matches: hello
@@ -463,7 +468,7 @@ example_step:
 
 #### Regex Filter
 
-Simply filters out the output of the step based upon the matched value.  
+Simply filters out the output of the step based upon the matched value.
 
 ```yaml
 say_hello:
@@ -485,7 +490,7 @@ By default it will match and return the entire regex statement (`hello world!), 
 ```yaml
 say_hello:
   value: hello world!
-  regex: 
+  regex:
     matches: (?P<greeting>.*) world!
     group: greeting
 ```
@@ -649,7 +654,7 @@ i_say_no:
 
 you_say_stop:
   value: stop
-  require: 
+  require:
     - i_say_no
     - you_say_yes
   required_by:
@@ -794,7 +799,7 @@ Test Plan:
 
 ```yaml
 login_to_reddit:
-  http: 
+  http:
     url: https://www.reddit.com/api/login/{{user}}
     form:
       user: {{user}}
@@ -811,6 +816,3 @@ $ lorikeet -c config.yml test.yml
   output: {"json": {"errors": [], "data": {"need_https": true, "modhash": "....", "cookie": "..."}}}
   duration: 1420.8466ms
 ```
-
-
-

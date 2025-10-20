@@ -1,5 +1,5 @@
-use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::Writer;
+use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use std::fs::File;
 use std::path::Path;
 
@@ -21,7 +21,7 @@ pub fn create_junit(
 
     let mut writer = Writer::new_with_indent(file, b' ', 4);
 
-    writer.write_event(Event::Decl(BytesDecl::new(b"1.0", Some(b"UTF-8"), None)))?;
+    writer.write_event(Event::Decl(BytesDecl::new("1.0", Some("UTF-8"), None)))?;
 
     // Add in the testsuite elem
 
@@ -48,7 +48,7 @@ pub fn create_junit(
             .unwrap_or_else(|_| String::from("")),
     };
 
-    let mut testsuite = BytesStart::borrowed(b"testsuite", b"testsuite".len());
+    let mut testsuite = BytesStart::new("testsuite");
 
     testsuite.push_attribute(("name", "lorikeet"));
     testsuite.push_attribute(("hostname", &*hostname));
@@ -61,7 +61,7 @@ pub fn create_junit(
     writer.write_event(Event::Start(testsuite))?;
 
     for result in results.iter() {
-        let mut testcase = BytesStart::borrowed(b"testcase", b"testcase".len());
+        let mut testcase = BytesStart::new("testcase");
 
         testcase.push_attribute(("name", &*result.name));
 
@@ -75,43 +75,43 @@ pub fn create_junit(
 
         writer.write_event(Event::Start(testcase))?;
 
-        writer.write_event(Event::Start(BytesStart::borrowed(
-            b"system-out",
-            b"system-out".len(),
+        writer.write_event(Event::Start(BytesStart::from_content(
+            "system-out",
+            "system-out".len(),
         )))?;
 
-        writer.write_event(Event::Text(BytesText::from_plain_str(
-            &filter_invalid_chars(&result.output),
-        )))?;
+        writer.write_event(Event::Text(BytesText::new(&filter_invalid_chars(
+            &result.output,
+        ))))?;
 
-        writer.write_event(Event::End(BytesEnd::borrowed(b"system-out")))?;
+        writer.write_event(Event::End(BytesEnd::new("system-out")))?;
 
         if !result.pass {
             let error_text = result.error.as_deref().unwrap_or("");
 
             if error_text == "Dependency Not Met" {
-                let mut skipped = BytesStart::borrowed(b"skipped", b"skipped".len());
+                let mut skipped = BytesStart::new("skipped");
                 skipped.push_attribute(("message", "Dependency Not Met"));
 
                 writer.write_event(Event::Start(skipped))?;
 
-                writer.write_event(Event::End(BytesEnd::borrowed(b"skipped")))?;
+                writer.write_event(Event::End(BytesEnd::new("skipped")))?;
             } else {
-                let mut failure = BytesStart::borrowed(b"failure", b"failure".len());
+                let mut failure = BytesStart::new("failure");
                 failure.push_attribute(("message", "Step failed to finish"));
 
                 writer.write_event(Event::Start(failure))?;
-                writer.write_event(Event::Text(BytesText::from_plain_str(
-                    &filter_invalid_chars(error_text),
-                )))?;
-                writer.write_event(Event::End(BytesEnd::borrowed(b"failure")))?;
+                writer.write_event(Event::Text(BytesText::new(&filter_invalid_chars(
+                    error_text,
+                ))))?;
+                writer.write_event(Event::End(BytesEnd::new("failure")))?;
             }
         }
 
-        writer.write_event(Event::End(BytesEnd::borrowed(b"testcase")))?;
+        writer.write_event(Event::End(BytesEnd::new("testcase")))?;
     }
 
-    writer.write_event(Event::End(BytesEnd::borrowed(b"testsuite")))?;
+    writer.write_event(Event::End(BytesEnd::new("testsuite")))?;
 
     Ok(())
 }
